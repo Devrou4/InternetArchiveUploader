@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>640</width>
+    <height>661</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Internet Archive Uploader</string>
+  </property>
+  <property name="windowIcon">
+   <iconset resource="../assets/assets.qrc">
+    <normaloff>:/logos/Internet_Archive_Icon.jpg</normaloff>:/logos/Internet_Archive_Icon.jpg</iconset>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QGridLayout" name="gridLayout">
+    <item row="1" column="0">
+     <widget class="QPushButton" name="pb_upload">
+      <property name="text">
+       <string>Upload</string>
+      </property>
+     </widget>
+    </item>
+    <item row="0" column="0">
+     <widget class="QWidget" name="widget" native="true">
+      <layout class="QGridLayout" name="gridLayout_2">
+       <item row="13" column="0">
+        <widget class="QLabel" name="lb_collection">
+         <property name="text">
+          <string>collection:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="12" column="0">
+        <widget class="QLabel" name="lb_mediatype">
+         <property name="text">
+          <string>mediatype:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="13" column="1" colspan="4">
+        <widget class="QComboBox" name="cb_collection">
+         <item>
+          <property name="text">
+           <string>opensource</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>opensource_audio</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>opensource_movies</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>opensource_media</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>opensource_image</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>open_source_software</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+       <item row="11" column="1" colspan="4">
+        <widget class="QLineEdit" name="le_creator"/>
+       </item>
+       <item row="15" column="0">
+        <widget class="QLabel" name="lb_subject">
+         <property name="text">
+          <string>subject:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="14" column="1" colspan="4">
+        <widget class="QTextEdit" name="te_description"/>
+       </item>
+       <item row="9" column="1" colspan="4">
+        <widget class="QLineEdit" name="le_identifier"/>
+       </item>
+       <item row="15" column="1" colspan="4">
+        <widget class="QLineEdit" name="le_subject"/>
+       </item>
+       <item row="14" column="0">
+        <widget class="QLabel" name="lb_description">
+         <property name="text">
+          <string>description:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="9" column="0">
+        <widget class="QLabel" name="lb_identifier">
+         <property name="text">
+          <string>identifier: </string>
+         </property>
+        </widget>
+       </item>
+       <item row="10" column="1" colspan="4">
+        <widget class="QLineEdit" name="le_title"/>
+       </item>
+       <item row="11" column="0">
+        <widget class="QLabel" name="lb_creator">
+         <property name="text">
+          <string>creator: </string>
+         </property>
+        </widget>
+       </item>
+       <item row="10" column="0">
+        <widget class="QLabel" name="lb_title">
+         <property name="text">
+          <string>title: </string>
+         </property>
+        </widget>
+       </item>
+       <item row="12" column="1" colspan="4">
+        <widget class="QComboBox" name="cb_mediatype">
+         <item>
+          <property name="text">
+           <string>data</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>texts</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>audio</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>movies</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>image</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>software</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="bl_file">
+         <property name="text">
+          <string>files: </string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QLabel" name="lb_logo">
+         <property name="text">
+          <string/>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="3" colspan="2">
+        <widget class="QToolButton" name="tb_file">
+         <property name="text">
+          <string/>
+         </property>
+         <property name="icon">
+          <iconset theme="QIcon::ThemeIcon::DocumentOpen"/>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="3" colspan="2">
+        <widget class="QToolButton" name="tb_folder">
+         <property name="text">
+          <string/>
+         </property>
+         <property name="icon">
+          <iconset theme="QIcon::ThemeIcon::FolderNew"/>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="3" colspan="2">
+        <widget class="QToolButton" name="tb_remove">
+         <property name="text">
+          <string/>
+         </property>
+         <property name="icon">
+          <iconset theme="QIcon::ThemeIcon::EditDelete"/>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1" rowspan="3">
+        <widget class="QListWidget" name="lw_paths"/>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item row="2" column="0">
+     <widget class="QTextBrowser" name="tb_console">
+      <property name="openExternalLinks">
+       <bool>true</bool>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>640</width>
+     <height>22</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+ </widget>
+ <tabstops>
+  <tabstop>tb_file</tabstop>
+  <tabstop>tb_folder</tabstop>
+  <tabstop>tb_remove</tabstop>
+  <tabstop>le_identifier</tabstop>
+  <tabstop>le_title</tabstop>
+  <tabstop>le_creator</tabstop>
+  <tabstop>cb_mediatype</tabstop>
+  <tabstop>cb_collection</tabstop>
+  <tabstop>te_description</tabstop>
+  <tabstop>le_subject</tabstop>
+  <tabstop>pb_upload</tabstop>
+  <tabstop>tb_console</tabstop>
+  <tabstop>lw_paths</tabstop>
+ </tabstops>
+ <resources>
+  <include location="../assets/assets.qrc"/>
+ </resources>
+ <connections/>
+</ui>

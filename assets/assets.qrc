@@ -1,0 +1,6 @@
+<RCC>
+  <qresource prefix="logos">
+    <file>Internet_Archive_Icon.jpg</file>
+    <file>Internet_Acrhive_Logo.png</file>
+  </qresource>
+</RCC>
