@@ -31,18 +31,18 @@ class Uploader(qtc.QObject):
     status = qtc.Signal(str)
     printer = qtc.Signal(str)
 
-    start_upload_signal = qtc.Signal(str, dict, list)
+    start_upload_signal = qtc.Signal(str, dict, list, ia.ArchiveSession)
 
     def __init__(self):
         super().__init__()
         self.start_upload_signal.connect(self.upload)
 
-    @qtc.Slot(str, dict, list)
-    def upload(self, identifier, metadata, filepaths):
+    @qtc.Slot(str, dict, list, ia.ArchiveSession)
+    def upload(self, identifier, metadata, filepaths, session):
         self.disable_button.emit(True)
         self.status.emit("Uploading..")
         try:
-            upload = ia.upload(identifier, files=filepaths, metadata=metadata, verbose=True)
+            upload = ia.upload(identifier, files=filepaths, metadata=metadata, verbose=True, access_key=session.access_key, secret_key=session.secret_key)
 
             if upload[0].status_code == 200:
                 self.printer.emit("\nUpload successful!")
@@ -63,6 +63,8 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
+
+        self.session = ia.get_session(config_file="./ia.ini")
 
         current_path = path.dirname(__file__)
         assets_folder = path.join(current_path, './assets')
@@ -139,7 +141,7 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
         if self.filepaths and identifier:
             print("Starting upload...")
 
-            self.uploader.start_upload_signal.emit(identifier, metadata, self.filepaths)
+            self.uploader.start_upload_signal.emit(identifier, metadata, self.filepaths, self.session)
 
     @qtc.Slot(str)
     def update_status(self, text):
