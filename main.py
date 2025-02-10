@@ -1,6 +1,7 @@
 import sys
 from os import path
 from requests import exceptions
+from wakepy import keep, ModeExit
 
 from PySide6 import QtCore as qtc
 from PySide6 import QtWidgets as qtw
@@ -30,6 +31,8 @@ class Uploader(qtc.QObject):
     disable_button = qtc.Signal(bool)
     status = qtc.Signal(str)
     printer = qtc.Signal(str)
+    disable_fields = qtc.Signal(bool)
+    clear_fields = qtc.Signal()
 
     start_upload_signal = qtc.Signal(str, dict, list, ia.ArchiveSession)
 
@@ -40,21 +43,29 @@ class Uploader(qtc.QObject):
     @qtc.Slot(str, dict, list, ia.ArchiveSession)
     def upload(self, identifier, metadata, filepaths, session):
         self.disable_button.emit(True)
+        self.disable_fields.emit(True)
         self.status.emit("Uploading..")
-        try:
-            upload = ia.upload(identifier, files=filepaths, metadata=metadata, verbose=True, access_key=session.access_key, secret_key=session.secret_key)
 
-            if upload[0].status_code == 200:
-                self.printer.emit("\nUpload successful!")
-                self.printer.emit(f"You can visit the item at <a href='https://archive.org/details/{identifier}'>https://archive.org/details/{identifier}</a>")
-                self.status.emit("Uploaded successfully!")
-            else:
-                self.printer.emit(f"Upload failed with status code: {upload[0].status_code}")
-                self.printer.emit("Error details:", upload[0].text)
-        except exceptions.RequestException as e:
-            self.printer.emit(f"An error occurred: {e}")
-        finally:
-            self.disable_button.emit(False)
+        with keep.running() as m:
+            try:
+                upload = ia.upload(identifier, files=filepaths, metadata=metadata, verbose=True, access_key=session.access_key, secret_key=session.secret_key)
+
+                if upload[0].status_code == 200:
+                    self.printer.emit("\nUpload successful!")
+                    self.printer.emit(f"You can visit the item at <a href='https://archive.org/details/{identifier}'>https://archive.org/details/{identifier}</a>")
+                    self.status.emit("DONE!")
+                else:
+                    self.printer.emit(f"Upload failed with status code: {upload[0].status_code}")
+                    self.printer.emit("Error details:", upload[0].text)
+            except exceptions.RequestException as e:
+                self.printer.emit(f"An error occurred: {e}")
+            finally:
+                self.disable_button.emit(False)
+                self.disable_fields.emit(False)
+                self.clear_fields.emit()
+
+                if not m.active:
+                    raise ModeExit
 
 
 class MainWindow(qtw.QMainWindow, Ui_MainWindow):
@@ -88,6 +99,8 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
         self.uploader.disable_button.connect(self.upload_button)
         self.uploader.status.connect(self.update_status)
         self.uploader.printer.connect(self.console_log)
+        self.uploader.disable_fields.connect(self.disable_fields)
+        self.uploader.clear_fields.connect(self.clear_fields)
 
         self.upload_thread.start()
 
@@ -151,6 +164,31 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
     def upload_button(self, disabled):
         self.pb_upload.setDisabled(disabled)
 
+    @qtc.Slot(bool)
+    def disable_fields(self, status):
+        self.le_title.setDisabled(status)
+        self.le_identifier.setDisabled(status)
+        self.le_subject.setDisabled(status)
+        self.le_creator.setDisabled(status)
+        self.te_description.setDisabled(status)
+        self.cb_mediatype.setDisabled(status)
+        self.cb_collection.setDisabled(status)
+        self.tb_file.setDisabled(status)
+        self.tb_folder.setDisabled(status)
+        self.tb_remove.setDisabled(status)
+
+    @qtc.Slot()
+    def clear_fields(self):
+        self.le_title.clear()
+        self.le_identifier.clear()
+        self.le_subject.clear()
+        self.le_creator.clear()
+        self.te_description.clear()
+        self.cb_mediatype.setCurrentIndex(0)
+        self.cb_collection.setCurrentIndex(0)
+        self.lw_paths.clear()
+        self.filepaths = []
+
     @qtc.Slot(str)
     def console_log(self, text):
         print(text)
@@ -160,7 +198,6 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
         self.tb_console.append(text)
 
     def closeEvent(self, event):
-        """Handle cleanup when closing the window"""
         self.upload_thread.quit()
         self.upload_thread.wait()
         event.accept()
