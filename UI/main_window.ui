@@ -31,6 +31,9 @@
       <layout class="QGridLayout" name="gridLayout_2">
        <item row="13" column="0">
         <widget class="QLabel" name="lb_collection">
+         <property name="toolTip">
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The category or group the item belongs to.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         </property>
          <property name="text">
           <string>collection:</string>
          </property>
@@ -38,6 +41,9 @@
        </item>
        <item row="12" column="0">
         <widget class="QLabel" name="lb_mediatype">
+         <property name="toolTip">
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The format of the item (e.g., text, audio, video).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         </property>
          <property name="text">
           <string>mediatype:</string>
          </property>
@@ -82,6 +88,9 @@
        </item>
        <item row="15" column="0">
         <widget class="QLabel" name="lb_subject">
+         <property name="toolTip">
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Keywords describing the content’s topics, separated by commas.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         </property>
          <property name="text">
           <string>subject:</string>
          </property>
@@ -98,6 +107,9 @@
        </item>
        <item row="14" column="0">
         <widget class="QLabel" name="lb_description">
+         <property name="toolTip">
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;A brief summary of the item's content.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         </property>
          <property name="text">
           <string>description:</string>
          </property>
@@ -105,6 +117,9 @@
        </item>
        <item row="9" column="0">
         <widget class="QLabel" name="lb_identifier">
+         <property name="toolTip">
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;A unique ID assigned to the item in the archive. It's used in the URL.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         </property>
          <property name="text">
           <string>identifier: </string>
          </property>
@@ -115,6 +130,9 @@
        </item>
        <item row="11" column="0">
         <widget class="QLabel" name="lb_creator">
+         <property name="toolTip">
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The author, artist, or entity responsible for the item.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         </property>
          <property name="text">
           <string>creator: </string>
          </property>
@@ -122,6 +140,9 @@
        </item>
        <item row="10" column="0">
         <widget class="QLabel" name="lb_title">
+         <property name="toolTip">
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The main name of the item.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         </property>
          <property name="text">
           <string>title: </string>
          </property>
@@ -177,6 +198,9 @@
        </item>
        <item row="1" column="3" colspan="2">
         <widget class="QToolButton" name="tb_file">
+         <property name="toolTip">
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Add file&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         </property>
          <property name="text">
           <string/>
          </property>
@@ -187,6 +211,9 @@
        </item>
        <item row="2" column="3" colspan="2">
         <widget class="QToolButton" name="tb_folder">
+         <property name="toolTip">
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Add folder&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         </property>
          <property name="text">
           <string/>
          </property>
@@ -197,6 +224,9 @@
        </item>
        <item row="3" column="3" colspan="2">
         <widget class="QToolButton" name="tb_remove">
+         <property name="toolTip">
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Remove selected item&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         </property>
          <property name="text">
           <string/>
          </property>
