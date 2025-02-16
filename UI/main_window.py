@@ -42,15 +42,67 @@ class Ui_MainWindow(object):
         self.widget.setObjectName(u"widget")
         self.gridLayout_2 = QGridLayout(self.widget)
         self.gridLayout_2.setObjectName(u"gridLayout_2")
+        self.lb_creator = QLabel(self.widget)
+        self.lb_creator.setObjectName(u"lb_creator")
+
+        self.gridLayout_2.addWidget(self.lb_creator, 11, 0, 1, 1)
+
+        self.tb_folder = QToolButton(self.widget)
+        self.tb_folder.setObjectName(u"tb_folder")
+        icon1 = QIcon(QIcon.fromTheme(QIcon.ThemeIcon.FolderNew))
+        self.tb_folder.setIcon(icon1)
+
+        self.gridLayout_2.addWidget(self.tb_folder, 2, 3, 1, 2)
+
         self.lb_collection = QLabel(self.widget)
         self.lb_collection.setObjectName(u"lb_collection")
 
         self.gridLayout_2.addWidget(self.lb_collection, 13, 0, 1, 1)
 
-        self.lb_mediatype = QLabel(self.widget)
-        self.lb_mediatype.setObjectName(u"lb_mediatype")
+        self.lb_title = QLabel(self.widget)
+        self.lb_title.setObjectName(u"lb_title")
 
-        self.gridLayout_2.addWidget(self.lb_mediatype, 12, 0, 1, 1)
+        self.gridLayout_2.addWidget(self.lb_title, 10, 0, 1, 1)
+
+        self.lb_logo = QLabel(self.widget)
+        self.lb_logo.setObjectName(u"lb_logo")
+
+        self.gridLayout_2.addWidget(self.lb_logo, 0, 1, 1, 1)
+
+        self.le_creator = QLineEdit(self.widget)
+        self.le_creator.setObjectName(u"le_creator")
+
+        self.gridLayout_2.addWidget(self.le_creator, 11, 1, 1, 4)
+
+        self.te_description = QTextEdit(self.widget)
+        self.te_description.setObjectName(u"te_description")
+
+        self.gridLayout_2.addWidget(self.te_description, 14, 1, 1, 4)
+
+        self.lb_description = QLabel(self.widget)
+        self.lb_description.setObjectName(u"lb_description")
+
+        self.gridLayout_2.addWidget(self.lb_description, 14, 0, 1, 1)
+
+        self.lw_paths = QListWidget(self.widget)
+        self.lw_paths.setObjectName(u"lw_paths")
+
+        self.gridLayout_2.addWidget(self.lw_paths, 1, 1, 3, 1)
+
+        self.le_title = QLineEdit(self.widget)
+        self.le_title.setObjectName(u"le_title")
+
+        self.gridLayout_2.addWidget(self.le_title, 10, 1, 1, 4)
+
+        self.le_subject = QLineEdit(self.widget)
+        self.le_subject.setObjectName(u"le_subject")
+
+        self.gridLayout_2.addWidget(self.le_subject, 15, 1, 1, 4)
+
+        self.lb_identifier = QLabel(self.widget)
+        self.lb_identifier.setObjectName(u"lb_identifier")
+
+        self.gridLayout_2.addWidget(self.lb_identifier, 9, 0, 1, 1)
 
         self.cb_collection = QComboBox(self.widget)
         self.cb_collection.addItem("")
@@ -63,56 +115,6 @@ class Ui_MainWindow(object):
 
         self.gridLayout_2.addWidget(self.cb_collection, 13, 1, 1, 4)
 
-        self.le_creator = QLineEdit(self.widget)
-        self.le_creator.setObjectName(u"le_creator")
-
-        self.gridLayout_2.addWidget(self.le_creator, 11, 1, 1, 4)
-
-        self.lb_subject = QLabel(self.widget)
-        self.lb_subject.setObjectName(u"lb_subject")
-
-        self.gridLayout_2.addWidget(self.lb_subject, 15, 0, 1, 1)
-
-        self.te_description = QTextEdit(self.widget)
-        self.te_description.setObjectName(u"te_description")
-
-        self.gridLayout_2.addWidget(self.te_description, 14, 1, 1, 4)
-
-        self.le_identifier = QLineEdit(self.widget)
-        self.le_identifier.setObjectName(u"le_identifier")
-
-        self.gridLayout_2.addWidget(self.le_identifier, 9, 1, 1, 4)
-
-        self.le_subject = QLineEdit(self.widget)
-        self.le_subject.setObjectName(u"le_subject")
-
-        self.gridLayout_2.addWidget(self.le_subject, 15, 1, 1, 4)
-
-        self.lb_description = QLabel(self.widget)
-        self.lb_description.setObjectName(u"lb_description")
-
-        self.gridLayout_2.addWidget(self.lb_description, 14, 0, 1, 1)
-
-        self.lb_identifier = QLabel(self.widget)
-        self.lb_identifier.setObjectName(u"lb_identifier")
-
-        self.gridLayout_2.addWidget(self.lb_identifier, 9, 0, 1, 1)
-
-        self.le_title = QLineEdit(self.widget)
-        self.le_title.setObjectName(u"le_title")
-
-        self.gridLayout_2.addWidget(self.le_title, 10, 1, 1, 4)
-
-        self.lb_creator = QLabel(self.widget)
-        self.lb_creator.setObjectName(u"lb_creator")
-
-        self.gridLayout_2.addWidget(self.lb_creator, 11, 0, 1, 1)
-
-        self.lb_title = QLabel(self.widget)
-        self.lb_title.setObjectName(u"lb_title")
-
-        self.gridLayout_2.addWidget(self.lb_title, 10, 0, 1, 1)
-
         self.cb_mediatype = QComboBox(self.widget)
         self.cb_mediatype.addItem("")
         self.cb_mediatype.addItem("")
@@ -124,29 +126,22 @@ class Ui_MainWindow(object):
 
         self.gridLayout_2.addWidget(self.cb_mediatype, 12, 1, 1, 4)
 
+        self.lb_mediatype = QLabel(self.widget)
+        self.lb_mediatype.setObjectName(u"lb_mediatype")
+
+        self.gridLayout_2.addWidget(self.lb_mediatype, 12, 0, 1, 1)
+
         self.bl_file = QLabel(self.widget)
         self.bl_file.setObjectName(u"bl_file")
 
         self.gridLayout_2.addWidget(self.bl_file, 1, 0, 1, 1)
 
-        self.lb_logo = QLabel(self.widget)
-        self.lb_logo.setObjectName(u"lb_logo")
-
-        self.gridLayout_2.addWidget(self.lb_logo, 0, 1, 1, 1)
-
         self.tb_file = QToolButton(self.widget)
         self.tb_file.setObjectName(u"tb_file")
-        icon1 = QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentOpen))
-        self.tb_file.setIcon(icon1)
+        icon2 = QIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentOpen))
+        self.tb_file.setIcon(icon2)
 
         self.gridLayout_2.addWidget(self.tb_file, 1, 3, 1, 2)
-
-        self.tb_folder = QToolButton(self.widget)
-        self.tb_folder.setObjectName(u"tb_folder")
-        icon2 = QIcon(QIcon.fromTheme(QIcon.ThemeIcon.FolderNew))
-        self.tb_folder.setIcon(icon2)
-
-        self.gridLayout_2.addWidget(self.tb_folder, 2, 3, 1, 2)
 
         self.tb_remove = QToolButton(self.widget)
         self.tb_remove.setObjectName(u"tb_remove")
@@ -155,10 +150,26 @@ class Ui_MainWindow(object):
 
         self.gridLayout_2.addWidget(self.tb_remove, 3, 3, 1, 2)
 
-        self.lw_paths = QListWidget(self.widget)
-        self.lw_paths.setObjectName(u"lw_paths")
+        self.lb_subject = QLabel(self.widget)
+        self.lb_subject.setObjectName(u"lb_subject")
 
-        self.gridLayout_2.addWidget(self.lw_paths, 1, 1, 3, 1)
+        self.gridLayout_2.addWidget(self.lb_subject, 15, 0, 1, 1)
+
+        self.le_identifier = QLineEdit(self.widget)
+        self.le_identifier.setObjectName(u"le_identifier")
+
+        self.gridLayout_2.addWidget(self.le_identifier, 9, 1, 1, 4)
+
+        self.lb_add_metadata = QLabel(self.widget)
+        self.lb_add_metadata.setObjectName(u"lb_add_metadata")
+        self.lb_add_metadata.setAlignment(Qt.AlignmentFlag.AlignRight|Qt.AlignmentFlag.AlignTrailing|Qt.AlignmentFlag.AlignVCenter)
+
+        self.gridLayout_2.addWidget(self.lb_add_metadata, 16, 1, 1, 2)
+
+        self.tb_add_metadata = QToolButton(self.widget)
+        self.tb_add_metadata.setObjectName(u"tb_add_metadata")
+
+        self.gridLayout_2.addWidget(self.tb_add_metadata, 16, 3, 1, 2)
 
 
         self.gridLayout.addWidget(self.widget, 0, 0, 1, 1)
@@ -199,24 +210,22 @@ class Ui_MainWindow(object):
         MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"Internet Archive Uploader", None))
         self.pb_upload.setText(QCoreApplication.translate("MainWindow", u"Upload", None))
 #if QT_CONFIG(tooltip)
+        self.lb_creator.setToolTip(QCoreApplication.translate("MainWindow", u"<html><head/><body><p>The author, artist, or entity responsible for the item.</p></body></html>", None))
+#endif // QT_CONFIG(tooltip)
+        self.lb_creator.setText(QCoreApplication.translate("MainWindow", u"creator: ", None))
+#if QT_CONFIG(tooltip)
+        self.tb_folder.setToolTip(QCoreApplication.translate("MainWindow", u"<html><head/><body><p>Add folder</p></body></html>", None))
+#endif // QT_CONFIG(tooltip)
+        self.tb_folder.setText("")
+#if QT_CONFIG(tooltip)
         self.lb_collection.setToolTip(QCoreApplication.translate("MainWindow", u"<html><head/><body><p>The category or group the item belongs to.</p></body></html>", None))
 #endif // QT_CONFIG(tooltip)
         self.lb_collection.setText(QCoreApplication.translate("MainWindow", u"collection:", None))
 #if QT_CONFIG(tooltip)
-        self.lb_mediatype.setToolTip(QCoreApplication.translate("MainWindow", u"<html><head/><body><p>The format of the item (e.g., text, audio, video).</p></body></html>", None))
+        self.lb_title.setToolTip(QCoreApplication.translate("MainWindow", u"<html><head/><body><p>The main name of the item.</p></body></html>", None))
 #endif // QT_CONFIG(tooltip)
-        self.lb_mediatype.setText(QCoreApplication.translate("MainWindow", u"mediatype:", None))
-        self.cb_collection.setItemText(0, QCoreApplication.translate("MainWindow", u"opensource", None))
-        self.cb_collection.setItemText(1, QCoreApplication.translate("MainWindow", u"opensource_audio", None))
-        self.cb_collection.setItemText(2, QCoreApplication.translate("MainWindow", u"opensource_movies", None))
-        self.cb_collection.setItemText(3, QCoreApplication.translate("MainWindow", u"opensource_media", None))
-        self.cb_collection.setItemText(4, QCoreApplication.translate("MainWindow", u"opensource_image", None))
-        self.cb_collection.setItemText(5, QCoreApplication.translate("MainWindow", u"open_source_software", None))
-
-#if QT_CONFIG(tooltip)
-        self.lb_subject.setToolTip(QCoreApplication.translate("MainWindow", u"<html><head/><body><p>Keywords describing the content\u2019s topics, separated by commas.</p></body></html>", None))
-#endif // QT_CONFIG(tooltip)
-        self.lb_subject.setText(QCoreApplication.translate("MainWindow", u"subject:", None))
+        self.lb_title.setText(QCoreApplication.translate("MainWindow", u"title: ", None))
+        self.lb_logo.setText("")
 #if QT_CONFIG(tooltip)
         self.lb_description.setToolTip(QCoreApplication.translate("MainWindow", u"<html><head/><body><p>A brief summary of the item's content.</p></body></html>", None))
 #endif // QT_CONFIG(tooltip)
@@ -225,14 +234,13 @@ class Ui_MainWindow(object):
         self.lb_identifier.setToolTip(QCoreApplication.translate("MainWindow", u"<html><head/><body><p>A unique ID assigned to the item in the archive. It's used in the URL.</p></body></html>", None))
 #endif // QT_CONFIG(tooltip)
         self.lb_identifier.setText(QCoreApplication.translate("MainWindow", u"identifier: ", None))
-#if QT_CONFIG(tooltip)
-        self.lb_creator.setToolTip(QCoreApplication.translate("MainWindow", u"<html><head/><body><p>The author, artist, or entity responsible for the item.</p></body></html>", None))
-#endif // QT_CONFIG(tooltip)
-        self.lb_creator.setText(QCoreApplication.translate("MainWindow", u"creator: ", None))
-#if QT_CONFIG(tooltip)
-        self.lb_title.setToolTip(QCoreApplication.translate("MainWindow", u"<html><head/><body><p>The main name of the item.</p></body></html>", None))
-#endif // QT_CONFIG(tooltip)
-        self.lb_title.setText(QCoreApplication.translate("MainWindow", u"title: ", None))
+        self.cb_collection.setItemText(0, QCoreApplication.translate("MainWindow", u"opensource", None))
+        self.cb_collection.setItemText(1, QCoreApplication.translate("MainWindow", u"opensource_audio", None))
+        self.cb_collection.setItemText(2, QCoreApplication.translate("MainWindow", u"opensource_movies", None))
+        self.cb_collection.setItemText(3, QCoreApplication.translate("MainWindow", u"opensource_media", None))
+        self.cb_collection.setItemText(4, QCoreApplication.translate("MainWindow", u"opensource_image", None))
+        self.cb_collection.setItemText(5, QCoreApplication.translate("MainWindow", u"open_source_software", None))
+
         self.cb_mediatype.setItemText(0, QCoreApplication.translate("MainWindow", u"data", None))
         self.cb_mediatype.setItemText(1, QCoreApplication.translate("MainWindow", u"texts", None))
         self.cb_mediatype.setItemText(2, QCoreApplication.translate("MainWindow", u"audio", None))
@@ -240,19 +248,24 @@ class Ui_MainWindow(object):
         self.cb_mediatype.setItemText(4, QCoreApplication.translate("MainWindow", u"image", None))
         self.cb_mediatype.setItemText(5, QCoreApplication.translate("MainWindow", u"software", None))
 
+#if QT_CONFIG(tooltip)
+        self.lb_mediatype.setToolTip(QCoreApplication.translate("MainWindow", u"<html><head/><body><p>The format of the item (e.g., text, audio, video).</p></body></html>", None))
+#endif // QT_CONFIG(tooltip)
+        self.lb_mediatype.setText(QCoreApplication.translate("MainWindow", u"mediatype:", None))
         self.bl_file.setText(QCoreApplication.translate("MainWindow", u"files: ", None))
-        self.lb_logo.setText("")
 #if QT_CONFIG(tooltip)
         self.tb_file.setToolTip(QCoreApplication.translate("MainWindow", u"<html><head/><body><p>Add file</p></body></html>", None))
 #endif // QT_CONFIG(tooltip)
         self.tb_file.setText("")
 #if QT_CONFIG(tooltip)
-        self.tb_folder.setToolTip(QCoreApplication.translate("MainWindow", u"<html><head/><body><p>Add folder</p></body></html>", None))
-#endif // QT_CONFIG(tooltip)
-        self.tb_folder.setText("")
-#if QT_CONFIG(tooltip)
         self.tb_remove.setToolTip(QCoreApplication.translate("MainWindow", u"<html><head/><body><p>Remove selected item</p></body></html>", None))
 #endif // QT_CONFIG(tooltip)
         self.tb_remove.setText("")
+#if QT_CONFIG(tooltip)
+        self.lb_subject.setToolTip(QCoreApplication.translate("MainWindow", u"<html><head/><body><p>Keywords describing the content\u2019s topics, separated by commas.</p></body></html>", None))
+#endif // QT_CONFIG(tooltip)
+        self.lb_subject.setText(QCoreApplication.translate("MainWindow", u"subject:", None))
+        self.lb_add_metadata.setText(QCoreApplication.translate("MainWindow", u"additional metadata:", None))
+        self.tb_add_metadata.setText(QCoreApplication.translate("MainWindow", u"...", None))
     # retranslateUi
 

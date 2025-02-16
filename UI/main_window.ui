@@ -29,6 +29,29 @@
     <item row="0" column="0">
      <widget class="QWidget" name="widget" native="true">
       <layout class="QGridLayout" name="gridLayout_2">
+       <item row="11" column="0">
+        <widget class="QLabel" name="lb_creator">
+         <property name="toolTip">
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The author, artist, or entity responsible for the item.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         </property>
+         <property name="text">
+          <string>creator: </string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="3" colspan="2">
+        <widget class="QToolButton" name="tb_folder">
+         <property name="toolTip">
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Add folder&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         </property>
+         <property name="text">
+          <string/>
+         </property>
+         <property name="icon">
+          <iconset theme="QIcon::ThemeIcon::FolderNew"/>
+         </property>
+        </widget>
+       </item>
        <item row="13" column="0">
         <widget class="QLabel" name="lb_collection">
          <property name="toolTip">
@@ -39,13 +62,55 @@
          </property>
         </widget>
        </item>
-       <item row="12" column="0">
-        <widget class="QLabel" name="lb_mediatype">
+       <item row="10" column="0">
+        <widget class="QLabel" name="lb_title">
          <property name="toolTip">
-          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The format of the item (e.g., text, audio, video).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The main name of the item.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
          </property>
          <property name="text">
-          <string>mediatype:</string>
+          <string>title: </string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QLabel" name="lb_logo">
+         <property name="text">
+          <string/>
+         </property>
+        </widget>
+       </item>
+       <item row="11" column="1" colspan="4">
+        <widget class="QLineEdit" name="le_creator"/>
+       </item>
+       <item row="14" column="1" colspan="4">
+        <widget class="QTextEdit" name="te_description"/>
+       </item>
+       <item row="14" column="0">
+        <widget class="QLabel" name="lb_description">
+         <property name="toolTip">
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;A brief summary of the item's content.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         </property>
+         <property name="text">
+          <string>description:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1" rowspan="3">
+        <widget class="QListWidget" name="lw_paths"/>
+       </item>
+       <item row="10" column="1" colspan="4">
+        <widget class="QLineEdit" name="le_title"/>
+       </item>
+       <item row="15" column="1" colspan="4">
+        <widget class="QLineEdit" name="le_subject"/>
+       </item>
+       <item row="9" column="0">
+        <widget class="QLabel" name="lb_identifier">
+         <property name="toolTip">
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;A unique ID assigned to the item in the archive. It's used in the URL.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         </property>
+         <property name="text">
+          <string>identifier: </string>
          </property>
         </widget>
        </item>
@@ -83,71 +148,6 @@
          </item>
         </widget>
        </item>
-       <item row="11" column="1" colspan="4">
-        <widget class="QLineEdit" name="le_creator"/>
-       </item>
-       <item row="15" column="0">
-        <widget class="QLabel" name="lb_subject">
-         <property name="toolTip">
-          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Keywords describing the content’s topics, separated by commas.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-         </property>
-         <property name="text">
-          <string>subject:</string>
-         </property>
-        </widget>
-       </item>
-       <item row="14" column="1" colspan="4">
-        <widget class="QTextEdit" name="te_description"/>
-       </item>
-       <item row="9" column="1" colspan="4">
-        <widget class="QLineEdit" name="le_identifier"/>
-       </item>
-       <item row="15" column="1" colspan="4">
-        <widget class="QLineEdit" name="le_subject"/>
-       </item>
-       <item row="14" column="0">
-        <widget class="QLabel" name="lb_description">
-         <property name="toolTip">
-          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;A brief summary of the item's content.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-         </property>
-         <property name="text">
-          <string>description:</string>
-         </property>
-        </widget>
-       </item>
-       <item row="9" column="0">
-        <widget class="QLabel" name="lb_identifier">
-         <property name="toolTip">
-          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;A unique ID assigned to the item in the archive. It's used in the URL.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-         </property>
-         <property name="text">
-          <string>identifier: </string>
-         </property>
-        </widget>
-       </item>
-       <item row="10" column="1" colspan="4">
-        <widget class="QLineEdit" name="le_title"/>
-       </item>
-       <item row="11" column="0">
-        <widget class="QLabel" name="lb_creator">
-         <property name="toolTip">
-          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The author, artist, or entity responsible for the item.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-         </property>
-         <property name="text">
-          <string>creator: </string>
-         </property>
-        </widget>
-       </item>
-       <item row="10" column="0">
-        <widget class="QLabel" name="lb_title">
-         <property name="toolTip">
-          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The main name of the item.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-         </property>
-         <property name="text">
-          <string>title: </string>
-         </property>
-        </widget>
-       </item>
        <item row="12" column="1" colspan="4">
         <widget class="QComboBox" name="cb_mediatype">
          <item>
@@ -182,17 +182,20 @@
          </item>
         </widget>
        </item>
+       <item row="12" column="0">
+        <widget class="QLabel" name="lb_mediatype">
+         <property name="toolTip">
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The format of the item (e.g., text, audio, video).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         </property>
+         <property name="text">
+          <string>mediatype:</string>
+         </property>
+        </widget>
+       </item>
        <item row="1" column="0">
         <widget class="QLabel" name="bl_file">
          <property name="text">
           <string>files: </string>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="1">
-        <widget class="QLabel" name="lb_logo">
-         <property name="text">
-          <string/>
          </property>
         </widget>
        </item>
@@ -209,19 +212,6 @@
          </property>
         </widget>
        </item>
-       <item row="2" column="3" colspan="2">
-        <widget class="QToolButton" name="tb_folder">
-         <property name="toolTip">
-          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Add folder&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-         </property>
-         <property name="text">
-          <string/>
-         </property>
-         <property name="icon">
-          <iconset theme="QIcon::ThemeIcon::FolderNew"/>
-         </property>
-        </widget>
-       </item>
        <item row="3" column="3" colspan="2">
         <widget class="QToolButton" name="tb_remove">
          <property name="toolTip">
@@ -235,8 +225,35 @@
          </property>
         </widget>
        </item>
-       <item row="1" column="1" rowspan="3">
-        <widget class="QListWidget" name="lw_paths"/>
+       <item row="15" column="0">
+        <widget class="QLabel" name="lb_subject">
+         <property name="toolTip">
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Keywords describing the content’s topics, separated by commas.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         </property>
+         <property name="text">
+          <string>subject:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="9" column="1" colspan="4">
+        <widget class="QLineEdit" name="le_identifier"/>
+       </item>
+       <item row="16" column="1" colspan="2">
+        <widget class="QLabel" name="lb_add_metadata">
+         <property name="text">
+          <string>additional metadata:</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+         </property>
+        </widget>
+       </item>
+       <item row="16" column="3" colspan="2">
+        <widget class="QToolButton" name="tb_add_metadata">
+         <property name="text">
+          <string>...</string>
+         </property>
+        </widget>
        </item>
       </layout>
      </widget>

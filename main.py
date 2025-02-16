@@ -9,6 +9,7 @@ from PySide6 import QtGui as qtg
 
 from UI.main_window import Ui_MainWindow
 from LoginDialog.login_dialog import LoginDialog
+from AdditionalMetadataDialog.add_metadata_dialog import AdditionalMetadataDialog
 
 import internetarchive as ia
 
@@ -89,8 +90,10 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
         self.pb_upload.clicked.connect(self.start_upload)
         self.tb_folder.clicked.connect(self.pick_dir)
         self.tb_remove.clicked.connect(self.remove_file)
+        self.tb_add_metadata.clicked.connect(self.open_additional_metadata_dialog)
 
         self.filepaths = []
+        self.additional_metadata = {}
 
         self.uploader = Uploader()
         self.upload_thread = qtc.QThread()
@@ -151,10 +154,21 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
             'mediatype': self.cb_mediatype.currentText()
         }
 
+        metadata.update(self.additional_metadata)
+
         if self.filepaths and identifier:
             print("Starting upload...")
 
             self.uploader.start_upload_signal.emit(identifier, metadata, self.filepaths, self.session)
+
+    def open_additional_metadata_dialog(self):
+        self.dialog = AdditionalMetadataDialog()
+        self.dialog.show()
+        self.dialog.send_metadata.connect(self.fetch_additional_metadata)
+
+    @qtc.Slot(dict)
+    def fetch_additional_metadata(self, metadata):
+        self.additional_metadata = metadata
 
     @qtc.Slot(str)
     def update_status(self, text):
