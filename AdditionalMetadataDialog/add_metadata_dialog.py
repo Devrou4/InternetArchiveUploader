@@ -4,6 +4,7 @@ from PySide6 import QtGui as qtg
 import sys
 
 from AdditionalMetadataDialog.UI.Add_Metadata_Dialog import Ui_Dialog
+from AdditionalMetadataDialog.load_preset_dialog import PresetDialog
 
 
 class AdditionalMetadataDialog(qtw.QDialog, Ui_Dialog):
@@ -22,7 +23,7 @@ class AdditionalMetadataDialog(qtw.QDialog, Ui_Dialog):
 
         self.pb_add.clicked.connect(self.add_row)
         self.pb_remove.clicked.connect(self.remove_row)
-        self.pb_presets.setDisabled(True)
+        self.pb_presets.clicked.connect(self.open_presets_dialog)
 
     def add_row(self):
         self.tbl_metadata.insertRow(self.tbl_metadata.rowCount())
@@ -43,6 +44,26 @@ class AdditionalMetadataDialog(qtw.QDialog, Ui_Dialog):
         self.send_metadata.emit(metadata_dic)
         self.close()
 
+    def open_presets_dialog(self):
+        self.dialog = PresetDialog()
+        self.dialog.show()
+        self.dialog.send_preset.connect(self.load_preset)
+
+    @qtc.Slot(dict)
+    def load_preset(self, preset):
+        self.tbl_metadata.setRowCount(0)
+        if preset:
+            for key, value in preset.items():
+                index = self.tbl_metadata.rowCount()
+                self.add_row()
+
+                if not self.tbl_metadata.item(index, 0):
+                    self.tbl_metadata.setItem(index, 0, qtw.QTableWidgetItem())
+                if not self.tbl_metadata.item(index, 1):
+                    self.tbl_metadata.setItem(index, 1, qtw.QTableWidgetItem())
+
+                self.tbl_metadata.item(index, 0).setText(key)
+                self.tbl_metadata.item(index, 1).setText(value)
 
 
 if __name__ == "__main__":
