@@ -1,3 +1,4 @@
+import os
 import sys
 from os import path
 from requests import exceptions
@@ -12,6 +13,8 @@ from LoginDialog.login_dialog import LoginDialog
 from AdditionalMetadataDialog.add_metadata_dialog import AdditionalMetadataDialog
 
 import internetarchive as ia
+from internetarchive import exceptions as ia_exception
+from re import fullmatch
 
 
 class OutputRedirector:
@@ -34,6 +37,7 @@ class Uploader(qtc.QObject):
     printer = qtc.Signal(str)
     disable_fields = qtc.Signal(bool)
     clear_fields = qtc.Signal()
+    relog = qtc.Signal()
 
     start_upload_signal = qtc.Signal(str, dict, list, ia.ArchiveSession)
 
@@ -45,28 +49,41 @@ class Uploader(qtc.QObject):
     def upload(self, identifier, metadata, filepaths, session):
         self.disable_button.emit(True)
         self.disable_fields.emit(True)
-        self.status.emit("Uploading..")
 
         with keep.running() as m:
             try:
-                upload = ia.upload(identifier, files=filepaths, metadata=metadata, verbose=True, access_key=session.access_key, secret_key=session.secret_key)
+                if not self.item_exists(identifier):
 
-                if upload[0].status_code == 200:
-                    self.printer.emit("\nUpload successful!")
-                    self.printer.emit(f"You can visit the item at <a href='https://archive.org/details/{identifier}'>https://archive.org/details/{identifier}</a>")
-                    self.status.emit("DONE!")
-                else:
-                    self.printer.emit(f"Upload failed with status code: {upload[0].status_code}")
-                    self.printer.emit("Error details:", upload[0].text)
+                    self.status.emit("Uploading..")
+                    upload = ia.upload(identifier, files=filepaths, metadata=metadata, verbose=True, access_key=session.access_key, secret_key=session.secret_key)
+
+                    if upload[0].status_code == 200:
+                        self.printer.emit("\nUpload successful!")
+                        self.printer.emit(f"You can visit the item at <a href='https://archive.org/details/{identifier}'>https://archive.org/details/{identifier}</a>")
+                        self.status.emit("DONE!")
+                        self.clear_fields.emit()
+                    else:
+                        self.printer.emit(f"Upload failed with status code: {upload[0].status_code}")
+                        self.printer.emit("Error details:", upload[0].text)
+            except ia_exception.AuthenticationError:
+                self.printer.emit("Authentication error")
+                self.relog.emit()
+
             except exceptions.RequestException as e:
                 self.printer.emit(f"An error occurred: {e}")
             finally:
                 self.disable_button.emit(False)
                 self.disable_fields.emit(False)
-                self.clear_fields.emit()
 
                 if not m.active:
                     raise ModeExit
+
+    def item_exists(self, identifier):
+        item = ia.get_item(identifier)
+        if item.exists:
+            self.printer.emit(f"The identifier '{identifier}' already exists on Internet Archive.")
+            return True
+        return False
 
 
 class MainWindow(qtw.QMainWindow, Ui_MainWindow):
@@ -104,6 +121,7 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
         self.uploader.printer.connect(self.console_log)
         self.uploader.disable_fields.connect(self.disable_fields)
         self.uploader.clear_fields.connect(self.clear_fields)
+        self.uploader.relog.connect(self.relog)
 
         self.upload_thread.start()
 
@@ -156,15 +174,45 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
 
         metadata.update(self.additional_metadata)
 
-        if self.filepaths and identifier:
+        if self.filepaths and self.validate_identifier(identifier):
             print("Starting upload...")
 
             self.uploader.start_upload_signal.emit(identifier, metadata, self.filepaths, self.session)
+
+    def validate_identifier(self, identifier):
+
+        if not (5 <= len(identifier) <= 80):
+            self.console_log(f"Identifier length must be between 5 and 80 characters (got {len(identifier)}).")
+            return False
+
+        if not fullmatch(r'[a-z0-9\-_]+', identifier):
+            self.console_log("Invalid identifier. Use only lowercase letters, numbers, dashes (-), and underscores (_).")
+            return False
+
+        return True
 
     def open_additional_metadata_dialog(self):
         self.dialog = AdditionalMetadataDialog()
         self.dialog.show()
         self.dialog.send_metadata.connect(self.fetch_additional_metadata)
+
+    @qtc.Slot()
+    def relog(self):
+        msgbox = qtw.QMessageBox()
+        msgbox.setWindowTitle("Authentication error")
+        msgbox.setWindowIcon(qtg.QIcon(qtg.QPixmap(os.path.join("assets", "Internet_Archive_Icon.jpg"))))
+        msgbox.setText("Authentication error")
+        msgbox.setInformativeText("Do you want to re-log?")
+        msgbox.setStandardButtons(qtw.QMessageBox.Ok | qtw.QMessageBox.Cancel)
+        ret = msgbox.exec()
+        if ret == qtw.QMessageBox.Ok:
+            if os.path.isfile("./ia.ini"):
+                os.remove("./ia.ini")
+                self.close()
+                self.dialog = LoginDialog()
+                self.dialog.show()
+
+                self.dialog.logged.connect(self.show)
 
     @qtc.Slot(dict)
     def fetch_additional_metadata(self, metadata):
@@ -190,6 +238,7 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
         self.tb_file.setDisabled(status)
         self.tb_folder.setDisabled(status)
         self.tb_remove.setDisabled(status)
+        self.tb_add_metadata.setDisabled(status)
 
     @qtc.Slot()
     def clear_fields(self):
