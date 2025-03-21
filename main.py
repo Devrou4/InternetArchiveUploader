@@ -93,11 +93,22 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
         super().__init__()
         self.setupUi(self)
 
+        palette = self.palette()
+        window_color = palette.color(qtg.QPalette.Window)
+        if window_color.value() < 128:
+            self.theme = 'dark'
+        else:
+            self.theme = 'light'
+
+
         self.session = ia.get_session(config_file="./ia.ini")
 
         current_path = path.dirname(__file__)
         assets_folder = path.join(current_path, './assets')
-        pixmap = qtg.QPixmap(path.join(assets_folder, 'Internet_Acrhive_Logo.png'))
+        if self.theme == 'light':
+            pixmap = qtg.QPixmap(path.join(assets_folder, 'Internet_Acrhive_Logo_Black.png'))
+        else:
+            pixmap = qtg.QPixmap(path.join(assets_folder, 'Internet_Acrhive_Logo_White.png'))
         pixmap = pixmap.scaled(80, 80, qtc.Qt.AspectRatioMode.KeepAspectRatio, qtc.Qt.TransformationMode.SmoothTransformation)
 
         self.lb_logo.setPixmap(pixmap)
@@ -268,7 +279,7 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
 
 if __name__ == "__main__":
     app = qtw.QApplication(sys.argv)
-
+    app.setStyle("Fusion")
     window = MainWindow()
 
     sys.exit(app.exec())
