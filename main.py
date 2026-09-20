@@ -16,7 +16,6 @@ import internetarchive as ia
 from internetarchive import exceptions as ia_exception
 from re import fullmatch
 
-
 class OutputRedirector:
     def __init__(self, text_edit, signal):
         self.text_edit = text_edit
@@ -278,8 +277,13 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
 
 
 if __name__ == "__main__":
+    if sys.platform.startswith('linux'):
+        os.environ["QT_QPA_PLATFORMTHEME"] = "xdgdesktopportal"
     app = qtw.QApplication(sys.argv)
-    app.setStyle("Fusion")
+    app.setApplicationName("iauploader")
+
+    if sys.platform == 'win32':
+        app.setStyle("Fusion")
     window = MainWindow()
 
     sys.exit(app.exec())
