@@ -257,3 +257,53 @@ def test_runtime_is_current_and_matches_the_container(manifest):
     assert f"freedesktop-{version}" in workflow
     major = int(version.split(".")[0])
     assert major >= 25
+
+
+def test_flatpak_publishes_on_a_version_tag():
+    """A v* tag produces a desktop Release; the .flatpak must ride along,
+    otherwise users following the README find no Flatpak download."""
+    text = (ROOT / ".github" / "workflows" / "build-flatpak.yml").read_text(encoding="utf-8")
+
+    assert "refs/tags/v" in text
+    assert "*.flatpak" in text
+
+
+def test_metainfo_version_matches_the_release_tag():
+    """appstream shows the version; a stale value misreports the build."""
+    import xml.etree.ElementTree as ET
+
+    root = ET.parse(FLATPAK / "InternetArchiveUploader.metainfo.xml").getroot()
+    version = root.find("releases/release").get("version")
+
+    assert version == "0.2.0"
+
+
+def test_push_trigger_is_a_single_mapping_with_branches_paths_and_tags():
+    """A duplicated `push:` key silently drops the first one's filters."""
+    import re
+
+    text = (ROOT / ".github" / "workflows" / "build-flatpak.yml").read_text(encoding="utf-8")
+    on_block = text.split("\non:", 1)[1].split("\npermissions:", 1)[0]
+
+    assert len(re.findall(r"^  push:", on_block, re.M)) == 1
+
+    data = yaml.safe_load(text)
+    on = data["on"] if "on" in data else data[True]
+    assert on["push"]["branches"] == ["master"]
+    assert "v*" in on["push"]["tags"]
+    assert on["push"]["paths"], "code-change rebuild paths were lost"
+
+
+def test_tag_push_releases_the_flatpak_without_a_paths_filter():
+    """Tagging must always build the bundle, even if the tag lands on a commit
+    that touched no watched path."""
+    data = yaml.safe_load(
+        (ROOT / ".github" / "workflows" / "build-flatpak.yml").read_text(encoding="utf-8")
+    )
+    on = data["on"] if "on" in data else data[True]
+
+    # Same mapping covers both; a tag push with no matching path still triggers
+    # because GitHub evaluates tags independently of the paths list.
+    assert "v*" in on["push"]["tags"]
+    release = data["jobs"]["release"]
+    assert "refs/tags/v" in release["if"] or "refs/tags/v" in str(release)

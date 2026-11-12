@@ -23,6 +23,9 @@ on:
       - 'packaging/**'
       - 'scripts/**'
       - '.github/workflows/build-flatpak.yml'
+    # A version tag must also produce the bundle: the Release ships it.
+    # No paths filter here, so tagging always rebuilds from the tagged commit.
+    tags: ["v*"]
   workflow_dispatch:
     inputs:
       release_tag:
@@ -198,7 +201,11 @@ jobs:
   release:
     name: Publish Flatpak
     needs: flatpak
-    if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
+    # Two ways in: a v* tag (release it alongside the desktop artifacts) or a
+    # manual run with an explicit tag.
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -213,6 +220,7 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
+          # On a tag push this is empty, which makes the action use github.ref.
           tag_name: ${{ inputs.release_tag }}
           files: |
             *.flatpak
