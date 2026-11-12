@@ -50,6 +50,8 @@ modules:
       - install -Dm755 internetarchive-uploader-wrapper ${FLATPAK_DEST}/bin/internetarchive-uploader-wrapper
       - install -Dm644 InternetArchiveUploader.desktop ${FLATPAK_DEST}/share/applications/InternetArchiveUploader.desktop
       - install -Dm644 InternetArchiveUploader.metainfo.xml ${FLATPAK_DEST}/share/metainfo/io.github.jcleng.InternetArchiveUploader.metainfo.xml
+      # appstreamcli rejects a metainfo whose license has no matching file.
+      - install -Dm644 LICENSE ${FLATPAK_DEST}/share/licenses/${FLATPAK_ID}/LICENSE
       - install -Dm644 io.github.jcleng.InternetArchiveUploader.png ${FLATPAK_DEST}/share/icons/hicolor/512x512/apps/io.github.jcleng.InternetArchiveUploader.png
     sources:
       # Rewritten by CI with the freshly built bundle URL and sha256.
@@ -65,6 +67,8 @@ modules:
         path: InternetArchiveUploader.desktop
       - type: file
         path: InternetArchiveUploader.metainfo.xml
+      - type: file
+        path: LICENSE
       - type: file
         path: icons/io.github.jcleng.InternetArchiveUploader.png
         dest-filename: io.github.jcleng.InternetArchiveUploader.png

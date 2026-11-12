@@ -188,3 +188,22 @@ def test_metainfo_has_license_and_provides():
     assert provides is not None
     # Must match the binary actually installed into /app/bin.
     assert provides.findtext("binary") == "internetarchive-uploader-wrapper"
+
+
+def test_license_is_shipped_for_appstream(manifest):
+    """appstreamcli errors with metainfo-license-invalid without this file."""
+    uploader = [m for m in manifest["modules"] if m.get("name") == "internetarchive-uploader"][0]
+    paths = {s.get("path") for s in uploader["sources"] if s.get("path")}
+    commands = "\n".join(uploader["build-commands"])
+
+    assert "LICENSE" in paths
+    assert (FLATPAK / "LICENSE").is_file()
+    assert "share/licenses/" in commands
+
+
+def test_flatpak_license_matches_the_upstream_one():
+    upstream = (ROOT / "LICENSE").read_text(encoding="utf-8")
+    vendored = (FLATPAK / "LICENSE").read_text(encoding="utf-8")
+
+    assert "MIT License" in upstream
+    assert vendored == upstream
