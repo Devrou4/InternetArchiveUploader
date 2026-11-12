@@ -3,8 +3,9 @@
 import sys
 from pathlib import Path
 
+BINARY_NAME = "InternetArchiveUploader"
+
 REQUIRED_FILES = (
-    "main.py",
     "LICENSE",
     "README.md",
     "assets/Internet_Acrhive_Logo_White.png",
@@ -15,6 +16,15 @@ REQUIRED_FILES = (
 FORBIDDEN_NAMES = frozenset({"ia.ini", ".ia.ini", "ia_upload_states"})
 
 
+def _find(root: Path, relative: str) -> Path | None:
+    """Accept both flat and PyInstaller's _internal/ data layout."""
+    for base in (root, root / "_internal"):
+        candidate = base / relative
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 def check_dist(root: Path) -> list[str]:
     """Return a list of problems; empty means the bundle is acceptable."""
     root = Path(root)
@@ -23,8 +33,11 @@ def check_dist(root: Path) -> list[str]:
     if not root.is_dir():
         return [f"Bundle directory not found: {root}"]
 
+    if not (root / BINARY_NAME).is_file():
+        problems.append(f"Missing executable: {BINARY_NAME}")
+
     for relative in REQUIRED_FILES:
-        if not (root / relative).is_file():
+        if not _find(root, relative):
             problems.append(f"Missing required file: {relative}")
 
     for path in root.rglob("*"):
