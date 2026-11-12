@@ -71,7 +71,8 @@ python main.py
 
 ## 代理设置
 
-图形：Settings → HTTP proxy。
+图形：**登录窗口底部的 `proxy` 输入框**（未登录时即可填写，否则需要代理才能连通的网络将无法完成登录）；
+登录后也可在 Settings → HTTP proxy 修改。
 命令行：
 
 ```bash
@@ -79,7 +80,8 @@ python main.py
 ```
 
 - 留空表示直连；空白字符会被忽略。
-- 作用于登录（`ia.configure`）、条目查询和文件上传，包括上传使用的 S3 端点。
+- 登录窗口填写后，同一代理会带到主窗口，用于登录、条目查询和文件上传（含 S3 端点）。
+- 登录框与 Settings 共用同一份代理状态，不会出现"登录走了代理、上传没走"的情况。
 - 必须包含协议和端口：`http://host:port` 或 `https://host:port`。
 - 支持 `http`、`https`、`socks5`、`socks5h`；SOCKS 需额外安装 `PySocks`。
 - 用户名密码可以写在 URL 中（`http://user:pass@host:port`），界面和日志只显示 `***:***`。

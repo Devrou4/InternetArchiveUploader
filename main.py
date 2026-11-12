@@ -121,6 +121,26 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
     # ---- login ---------------------------------------------------------
     @qtc.Slot()
     def _after_login(self):
+        if getattr(self, "dialog", None) is not None:
+            self._after_login_from(self.dialog)
+        else:
+            self.controller.reset_session()
+            self.show()
+
+    def _after_login_from(self, dialog):
+        """Adopt the proxy picked at login so uploads use the same route."""
+        if hasattr(dialog, "apply_proxy"):
+            dialog.apply_proxy()
+        manager = getattr(dialog, "manager", self.manager)
+        proxy_changed = manager.proxy != getattr(self.manager, "proxy", None)
+        path_changed = Path(manager.path) != Path(self.manager.path)
+        if proxy_changed or path_changed:
+            self.manager = manager
+            self.controller = UploadController(manager, self.queue)
+            self._connect_controller()
+            self.current_config = manager.path
+            self.tasks.set_config_path(manager.path)
+            self.config_label.setText(self._connection_text())
         self.controller.reset_session()
         self.show()
 
