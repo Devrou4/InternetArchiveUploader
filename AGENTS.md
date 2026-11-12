@@ -58,7 +58,10 @@ sandboxes, so do not "fix" a missing library by vendoring it into the repo.
 - **`mediatype` is item-level, not per-file.** Multiple files sharing one
   identifier share one metadata payload.
 - **Never overwrite a remote file silently.** Same-name uploads are conflicts
-  that the user must resolve by renaming.
+  that the user must resolve by renaming (edit the Remote name cell).
+- **Retry is per file.** `UploadController.retry(task_id)` requeues exactly one
+  task and resets its attempt count and progress; double-clicking a failed row
+  is the UI shortcut.
 
 ## Architecture
 
@@ -78,6 +81,7 @@ uploader/
   detection.py      detect_file() -> Detection(mediatype|None, needs_confirmation)
   archive_client.py ArchiveClient + typed failures (Retryable/Auth/Permission/Conflict/Unknown)
   item_service.py   ItemService.prepare(): who initialises the item, which names collide
+  progress.py       CountingFile: reports (bytes_read, total) while the library reads
   queue.py          TaskQueue: dispatch limit, retry backoff, initializer gating (pure, no Qt)
   workers.py        UploadWorker: emits results only, never mutates shared state
   controller.py     UploadController: glue; owns queue, threads and the pump timer
@@ -108,6 +112,23 @@ uploader/
   `QThread` behind crashes Qt with no Python traceback.
 - Each worker gets an isolated session; do not share one `ArchiveSession`
   across threads without evidence it is safe.
+
+### Progress reporting
+
+`upload_file` has no progress callback, so `ArchiveClient` hands it a
+`CountingFile` instead of a path; every read is counted. Consequences:
+
+- Progress is the offset of the current read window, not cumulative — the
+  library rewinds the body before sending, so a cumulative counter would
+  exceed the file size.
+- A failing UI callback must never break the transfer (`CountingFile` swallows
+  it); the same applies to the Qt signal.
+- `UploadController` throttles redraws (200 ms) but **flushes on completion**;
+  a throttled final update would leave the row stuck at 99%.
+- A row at 100% is not success. `failed at N%` is deliberate: the bytes may
+  have left the machine without the server accepting the file.
+- Redraws go through `TaskTable.update_row()`, not a full `refresh()`, so the
+  selection survives.
 
 ### Retry policy
 

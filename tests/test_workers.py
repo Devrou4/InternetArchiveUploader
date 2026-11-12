@@ -34,7 +34,7 @@ class FakeClient:
         self.reconcile_state = reconcile_state
         self.uploads = []
 
-    def upload_file(self, task, metadata):
+    def upload_file(self, task, metadata, on_progress=None):
         self.uploads.append((task.id, metadata))
         if self.error:
             raise self.error
@@ -90,3 +90,40 @@ def test_worker_never_touches_thread_unsafe_state(tmp_path: Path):
     run_worker(task, FakeClient())
 
     assert task.state.value == "draft"
+
+def test_worker_emits_progress_for_its_own_task(tmp_path: Path):
+    task = make_task(tmp_path)
+    events = []
+
+    class ProgressClient(FakeClient):
+        def upload_file(self, task_arg, metadata, on_progress=None):
+            if on_progress:
+                on_progress(1, 2)
+                on_progress(2, 2)
+            return UploadResult(task_arg.remote_name, True)
+
+    worker = workers.UploadWorker(task, ProgressClient(), None)
+    worker.progress.connect(lambda tid, done, total: events.append((tid, done, total)))
+    worker.run()
+
+    assert events == [("t1", 1, 2), ("t1", 2, 2)]
+
+
+def test_worker_progress_is_scoped_to_its_task_id(tmp_path: Path):
+    """Two concurrent workers must not mix their progress."""
+    task_a = make_task(tmp_path)
+    task_b = make_task(tmp_path)
+    task_b.id = "t2"
+    got = []
+
+    class Client(FakeClient):
+        def upload_file(self, task_arg, metadata, on_progress=None):
+            on_progress(5, 5)
+            return UploadResult(task_arg.remote_name, True)
+
+    for t in (task_a, task_b):
+        w = workers.UploadWorker(t, Client(), None)
+        w.progress.connect(lambda tid, d, total: got.append(tid))
+        w.run()
+
+    assert got == ["t1", "t2"]

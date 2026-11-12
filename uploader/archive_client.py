@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from uploader.models import UploadTask
+from uploader.progress import CountingFile
 
 
 class ArchiveError(Exception):
@@ -72,7 +73,12 @@ class ArchiveClient:
         files = {entry.get("name"): entry for entry in raw.get("files", []) if entry.get("name")}
         return ItemSnapshot(exists=True, metadata=metadata, files=files)
 
-    def upload_file(self, task: UploadTask, metadata: dict | None) -> UploadResult:
+    def upload_file(
+        self,
+        task: UploadTask,
+        metadata: dict | None,
+        on_progress=None,
+    ) -> UploadResult:
         self._assert_unchanged(task)
 
         snapshot = self.inspect(task.item_key)
@@ -83,11 +89,12 @@ class ArchiveClient:
 
         item = self._session.get_item(task.item_key)
         try:
-            response = item.upload_file(
-                str(task.local_path),
-                key=task.remote_name,
-                metadata=metadata,
-            )
+            with CountingFile(task.local_path, on_progress=on_progress) as body:
+                response = item.upload_file(
+                    body,
+                    key=task.remote_name,
+                    metadata=metadata,
+                )
         except Exception as exc:
             raise self._classify(exc) from None
 

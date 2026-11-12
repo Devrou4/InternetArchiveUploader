@@ -193,6 +193,7 @@ class TaskQueue:
         task.attempts = 0
         task.retry_at = None
         task.error = ""
+        task.reset_progress()
         prep = self._prepared.get(task.item_key)
         if prep and prep.initializer_task_id == task_id:
             self._dispatched_initializer.discard(task_id)

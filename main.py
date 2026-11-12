@@ -36,6 +36,9 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
     def __init__(self, manager: ConfigManager):
         super().__init__()
         self.setupUi(self)
+        # The task table needs room for File/Remote/Item/Type/Status/Progress.
+        # 640px (the Designer default) pushes Progress behind a scrollbar.
+        self.resize(max(self.width(), 980), self.height())
         self.manager = manager
         self.additional_metadata = {}
         self.current_config = manager.path
@@ -105,11 +108,13 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
         self.pb_stop.clicked.connect(self.stop_dispatch)
         self.pb_retry.clicked.connect(self.retry_failed)
         self.tb_settings.clicked.connect(self.open_settings)
+        self.tasks.table.cellDoubleClicked.connect(self._on_row_double_clicked)
         self.limit_box.valueChanged.connect(self.controller.set_limit)
 
         self.controller.log.connect(self.update_console)
         self.controller.status.connect(self.update_status)
         self.controller.state_changed.connect(self.refresh_tasks)
+        self.controller.progress_changed.connect(self._on_progress_changed)
         self.controller.item_lookup_failed.connect(self._on_lookup_failed)
 
         if not manager.path.is_file():
@@ -272,6 +277,27 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
         self.tasks.refresh()
 
     @qtc.Slot(str)
+    def _on_progress_changed(self, task_id: str):
+        """Update one row instead of re-rendering the whole table on every chunk."""
+        row = self.tasks.row_for(task_id)
+        if row is None:
+            return
+        self.tasks.update_row(row)
+
+    @qtc.Slot(int, int)
+    def _on_row_double_clicked(self, row: int, column: int):
+        """Double-clicking a failed row retries just that file."""
+        tasks = self.tasks.tasks()
+        if not 0 <= row < len(tasks):
+            return
+        task = tasks[row]
+        if task.state is not TaskState.FAILED:
+            return
+        self.controller.retry(task.id)
+        self.controller.start()
+        self.update_console(f"Retrying {task.remote_name}.")
+
+    @qtc.Slot(str)
     def _on_lookup_failed(self, message):
         self.update_console(f"Item lookup failed: {message}")
         qtw.QMessageBox.warning(self, "Item lookup failed", message)
@@ -320,6 +346,7 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
         self.controller.log.connect(self.update_console)
         self.controller.status.connect(self.update_status)
         self.controller.state_changed.connect(self.refresh_tasks)
+        self.controller.progress_changed.connect(self._on_progress_changed)
         self.controller.item_lookup_failed.connect(self._on_lookup_failed)
 
     def on_config_selected(self, config_path: str):

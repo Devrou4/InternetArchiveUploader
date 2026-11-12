@@ -20,6 +20,7 @@ class UploadController(qtc.QObject):
     log = qtc.Signal(str)
     status = qtc.Signal(str)
     state_changed = qtc.Signal()
+    progress_changed = qtc.Signal(str)
     item_lookup_failed = qtc.Signal(str)
 
     def __init__(self, manager: ConfigManager, queue: TaskQueue | None = None, parent=None):
@@ -35,6 +36,11 @@ class UploadController(qtc.QObject):
         self._timer.setInterval(1000)
         self._timer.timeout.connect(self._pump)
         self._dispatch_enabled = False
+        # Progress redraw throttling: the library reads 1 MiB chunks, so a large
+        # file would otherwise repaint the table ~1000 times.
+        self._progress_interval = 0.2
+        self._last_progress_emit: dict[str, float] = {}
+        self._pending_progress: set[str] = set()
 
     # ---- configuration -------------------------------------------------
     @property
@@ -91,6 +97,11 @@ class UploadController(qtc.QObject):
 
     def stop_dispatch(self) -> None:
         self._dispatch_enabled = False
+        # Progress redraw throttling: the library reads 1 MiB chunks, so a large
+        # file would otherwise repaint the table ~1000 times.
+        self._progress_interval = 0.2
+        self._last_progress_emit: dict[str, float] = {}
+        self._pending_progress: set[str] = set()
         self._queue.stop_dispatch()
         self.status.emit("Stopped dispatching new files; running uploads continue.")
 
@@ -140,6 +151,7 @@ class UploadController(qtc.QObject):
         worker.failed.connect(lambda error, tid=task.id: self._on_failure(tid, error))
         worker.unknown.connect(lambda message, tid=task.id: self._on_unknown(tid, message))
         worker.log.connect(self.log)
+        worker.progress.connect(self._on_progress)
 
         self._threads[task.id] = thread
         self._workers[task.id] = worker
@@ -159,8 +171,34 @@ class UploadController(qtc.QObject):
             thread.quit()
             thread.finished.connect(thread.deleteLater)
 
+    @qtc.Slot(str, int, int)
+    def _on_progress(self, task_id: str, done: int, total: int) -> None:
+        try:
+            task = self._queue.task(task_id)
+        except KeyError:
+            return
+        task.progress = (done, total)
+
+        now = self._now()
+        last = self._last_progress_emit.get(task_id, 0.0)
+        if now - last < self._progress_interval:
+            # Remember that this row is stale; the completion path flushes it so
+            # the final value is never dropped.
+            self._pending_progress.add(task_id)
+            return
+        self._last_progress_emit[task_id] = now
+        self.progress_changed.emit(task_id)
+
+    def _flush_progress(self) -> None:
+        """Emit any throttled updates, e.g. when a task finishes."""
+        pending, self._pending_progress = self._pending_progress, set()
+        for task_id in pending:
+            self._last_progress_emit.pop(task_id, None)
+            self.progress_changed.emit(task_id)
+
     def _on_success(self, task_id: str, result) -> None:
         self._queue.complete(task_id, result)
+        self._flush_progress()
         self._finish(task_id)
         task = self._queue.task(task_id)
         self.log.emit(f"{task.remote_name}: done")
@@ -169,6 +207,7 @@ class UploadController(qtc.QObject):
     def _on_failure(self, task_id: str, error: Exception) -> None:
         message = f"{type(error).__name__}: {error}"
         self._queue.fail(task_id, error, now=self._now())
+        self._flush_progress()
         self._finish(task_id)
         self.log.emit(f"{self._queue.task(task_id).remote_name}: {message}")
         self.state_changed.emit()

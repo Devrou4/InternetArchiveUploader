@@ -142,3 +142,43 @@ def test_local_file_changed_since_import_is_rejected(tmp_path: Path):
         client.upload_file(task, metadata={"title": "x"})
 
     assert session.upload_calls == []
+
+def test_upload_file_accepts_a_progress_callback(tmp_path: Path):
+    session = FakeSession(metadata=None)
+    client = ArchiveClient(session)
+    seen = []
+
+    client.upload_file(make_task(tmp_path), metadata={"title": "x"}, on_progress=lambda d, t: seen.append((d, t)))
+
+    assert session.upload_calls, "upload was attempted"
+
+
+def test_progress_callback_received_bytes_reach_the_caller(tmp_path: Path):
+    """The client must hand a counting file to the library, not a bare path."""
+    seen = []
+
+    class CountingAwareSession(FakeSession):
+        def get_item(self, identifier):
+            session = self
+
+            class FakeItem:
+                def load(self_inner):
+                    pass
+
+                def upload_file(self_inner, body, key=None, metadata=None, **kwargs):
+                    if hasattr(body, "read"):
+                        body.read()
+                    session.upload_calls.append({"body": body, "key": key})
+
+                    class R:
+                        status_code = 200
+                        text = ""
+
+                    return R()
+
+            return FakeItem()
+
+    client = ArchiveClient(CountingAwareSession(metadata=None))
+    client.upload_file(make_task(tmp_path), metadata=None, on_progress=lambda d, t: seen.append(d))
+
+    assert seen and seen[-1] > 0

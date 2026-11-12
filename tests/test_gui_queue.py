@@ -137,3 +137,87 @@ def test_editing_remote_name_to_a_duplicate_is_rejected(qtbot, tmp_path: Path):
 
     assert table.tasks()[0].remote_name == "a.bin"
     assert "same remote name" in table.last_warning
+
+
+def test_progress_column_shows_percent_per_task(qtbot, tmp_path: Path):
+    table = make_window(qtbot)
+    drop_event(table, [local_uri(tmp_path, "a.bin"), local_uri(tmp_path, "b.bin")])
+    a, b = table.tasks()
+
+    from uploader.models import TaskState
+
+    a.size = 100
+    a.progress = (50, 100)
+    a.state = TaskState.RUNNING
+    b.size = 100
+    b.state = TaskState.DRAFT
+    table.refresh()
+
+    assert table.progress_text(0) == "50%"
+    assert table.progress_text(1) == "—"
+
+
+def test_failed_row_offers_a_retry(qtbot, tmp_path: Path):
+    from uploader.models import TaskState
+
+    table = make_window(qtbot)
+    drop_event(table, [local_uri(tmp_path, "a.bin")])
+    task = table.tasks()[0]
+    task.state = TaskState.FAILED
+    task.error = "boom"
+    table.refresh()
+
+    assert table.retryable_task_ids() == [task.id]
+
+
+def test_succeeded_row_is_not_retryable(qtbot, tmp_path: Path):
+    from uploader.models import TaskState
+
+    table = make_window(qtbot)
+    drop_event(table, [local_uri(tmp_path, "a.bin")])
+    task = table.tasks()[0]
+    task.state = TaskState.SUCCEEDED
+    table.refresh()
+
+    assert table.retryable_task_ids() == []
+
+
+def test_failed_row_shows_the_partial_amount_not_a_full_bar(qtbot, tmp_path: Path):
+    """A failed upload that got to 100% of the bytes must not look finished."""
+    from uploader.models import TaskState
+
+    table = make_window(qtbot)
+    drop_event(table, [local_uri(tmp_path, "a.bin")])
+    task = table.tasks()[0]
+    task.size = 100
+    task.bytes_done = 100
+    task.state = TaskState.FAILED
+    task.error = "server said no"
+    table.refresh()
+
+    label = table.progress_text(0)
+
+    assert "failed" in label.lower()
+    assert label != "100%"
+
+
+def test_detail_column_is_wide_enough_to_read_the_error(qtbot, tmp_path: Path):
+    """Detail carries the reason a file failed; it must not be a sliver.
+
+    The window is narrow, so the table scrolls horizontally instead of
+    squeezing every column — but Detail must stay readable.
+    """
+    from uploader.models import TaskState
+
+    table = make_window(qtbot)
+    table.resize(620, 200)
+    table.show()
+    qtbot.waitExposed(table)
+    drop_event(table, [local_uri(tmp_path, "a.bin")])
+    task = table.tasks()[0]
+    task.state = TaskState.FAILED
+    task.error = "HTTP 403 not permitted for this collection"
+    table.refresh()
+
+    assert table.table.columnWidth(6) >= 200
+    assert "403" in table.detail_text(0)

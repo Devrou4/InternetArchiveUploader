@@ -190,3 +190,47 @@ def test_failure_in_one_item_does_not_block_another(tmp_path: Path):
 
     assert a.state is TaskState.FAILED
     assert b.state is TaskState.SUCCEEDED
+
+def test_single_failed_task_can_be_retried_without_touching_others(tmp_path: Path):
+    queue = TaskQueue(limit=2)
+    a = task(tmp_path, "a", item_key="x")
+    b = task(tmp_path, "b", item_key="y")
+    queue.add(a)
+    queue.add(b)
+    queue.start()
+    queue.next_ready(now=0.0)
+    queue.fail("a", AuthenticationFailure("bad"), now=0.0)
+    queue.complete("b", result=None)
+
+    queue.retry_failed("a", now=1.0)
+
+    assert a.state is TaskState.QUEUED
+    assert b.state is TaskState.SUCCEEDED
+
+
+def test_retrying_a_succeeded_task_is_a_no_op(tmp_path: Path):
+    queue = TaskQueue(limit=1)
+    t = task(tmp_path, "a", item_key="x")
+    queue.add(t)
+    queue.start()
+    queue.next_ready(now=0.0)
+    queue.complete("a", result=None)
+
+    queue.retry_failed("a", now=1.0)
+
+    assert t.state is TaskState.SUCCEEDED
+
+
+def test_retry_resets_attempts_and_progress(tmp_path: Path):
+    queue = TaskQueue(limit=1)
+    t = task(tmp_path, "a", item_key="x")
+    t.progress = (50, 100)
+    queue.add(t)
+    queue.start()
+    queue.next_ready(now=0.0)
+    queue.fail("a", AuthenticationFailure("bad"), now=0.0)
+
+    queue.retry_failed("a", now=1.0)
+
+    assert t.attempts == 0
+    assert t.progress[0] == 0

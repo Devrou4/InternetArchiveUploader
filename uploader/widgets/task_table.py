@@ -13,7 +13,9 @@ from PySide6 import QtWidgets as qtw
 from uploader.detection import detect_file
 from uploader.models import ItemConfig, TaskState, UploadTask
 
-COLUMNS = ["File", "Remote name", "Item", "Type", "Status", "Detail"]
+COLUMNS = ["File", "Remote name", "Item", "Type", "Status", "Progress", "Detail (error)"]
+COLUMN_PROGRESS = 5
+COLUMN_DETAIL = 6
 
 
 class TaskTable(qtw.QWidget):
@@ -37,8 +39,28 @@ class TaskTable(qtw.QWidget):
 
         self.table = qtw.QTableWidget(0, len(COLUMNS))
         self.table.setHorizontalHeaderLabels(COLUMNS)
+        self.table.setWordWrap(False)
         self.table.setSelectionBehavior(qtw.QAbstractItemView.SelectionBehavior.SelectRows)
-        self.table.horizontalHeader().setStretchLastSection(True)
+        header = self.table.horizontalHeader()
+        header.setStretchLastSection(False)
+        # Fixed widths for the narrow, predictable columns; the text columns
+        # share the remaining width so the failure reason stays visible without
+        # horizontal scrolling.
+        mode = qtw.QHeaderView.ResizeMode
+        # The window is only ~640px wide, so the table scrolls horizontally
+        # rather than squeezing every column into uselessness. Detail is the
+        # widest because it carries the failure reason.
+        for column, width, resize in (
+            (0, 140, mode.Interactive),               # File
+            (1, 130, mode.Interactive),               # Remote name
+            (2, 150, mode.Interactive),               # Item
+            (3, 80, mode.Interactive),                # Type
+            (4, 90, mode.Interactive),                # Status
+            (COLUMN_PROGRESS, 100, mode.Interactive),  # Progress
+            (COLUMN_DETAIL, 260, mode.Stretch),       # Detail (error)
+        ):
+            header.setSectionResizeMode(column, resize)
+            self.table.setColumnWidth(column, width)
         # Editable columns: Remote name (1) and Item (2). Everything else is
         # derived from the file or the queue state.
         self.table.itemChanged.connect(self._on_item_changed)
@@ -126,6 +148,17 @@ class TaskTable(qtw.QWidget):
     def remote_name(self, row: int) -> str:
         return self._tasks[row].remote_name
 
+    def detail_text(self, row: int) -> str:
+        item = self.table.item(row, COLUMN_DETAIL)
+        return item.text() if item else ""
+
+    def progress_text(self, row: int) -> str:
+        item = self.table.item(row, COLUMN_PROGRESS)
+        return item.text() if item else ""
+
+    def retryable_task_ids(self) -> list[str]:
+        return [task.id for task in self._tasks if task.state is TaskState.FAILED]
+
     def startable_tasks(self) -> list[UploadTask]:
         return [
             task
@@ -164,6 +197,41 @@ class TaskTable(qtw.QWidget):
         self.refresh()
 
     # ---- rendering -----------------------------------------------------
+    @staticmethod
+    def _progress_label(task) -> str:
+        if task.state is TaskState.SUCCEEDED:
+            return "100%"
+        if task.state is TaskState.FAILED:
+            # Do not show a full bar: reaching 100% of bytes does not mean the
+            # server accepted the file.
+            return f"failed at {task.percent}%"
+        if task.state is TaskState.RUNNING:
+            return f"{task.percent}%"
+        if task.state is TaskState.QUEUED:
+            return "0%"
+        return "—"
+
+    def update_row(self, row: int) -> None:
+        """Refresh a single row (used for progress), preserving the selection."""
+        if not 0 <= row < len(self._tasks):
+            return
+        task = self._tasks[row]
+        values = {
+            COLUMN_PROGRESS: self._progress_label(task),
+            COLUMN_DETAIL: task.error,
+            4: task.state.value,
+        }
+        self._refreshing = True
+        try:
+            for column, value in values.items():
+                item = self.table.item(row, column)
+                if item is None:
+                    item = qtw.QTableWidgetItem()
+                    self.table.setItem(row, column, item)
+                item.setText(str(value))
+        finally:
+            self._refreshing = False
+
     def _on_item_changed(self, item) -> None:
         if self._refreshing or item is None:
             return
@@ -196,6 +264,7 @@ class TaskTable(qtw.QWidget):
                 task.item_key,
                 type_text,
                 task.state.value,
+                self._progress_label(task),
                 task.error,
             ]
             for column, value in enumerate(cells):

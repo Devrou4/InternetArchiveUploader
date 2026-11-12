@@ -12,6 +12,8 @@ from uploader.resources import optional_keep_awake
 
 class UploadWorker(qtc.QObject):
     succeeded = qtc.Signal(object)
+    # task_id, bytes_done, bytes_total — keeps concurrent workers distinguishable.
+    progress = qtc.Signal(str, int, int)
     failed = qtc.Signal(object)
     unknown = qtc.Signal(str)
     log = qtc.Signal(str)
@@ -22,12 +24,19 @@ class UploadWorker(qtc.QObject):
         self._client = client
         self._metadata = metadata
 
+    def _emit_progress(self, done: int, total: int) -> None:
+        self.progress.emit(self._task.id, int(done), int(total))
+
     @qtc.Slot()
     def run(self):
         self.log.emit(f"{self._task.remote_name}: uploading")
         try:
             with optional_keep_awake():
-                result = self._client.upload_file(self._task, self._metadata)
+                result = self._client.upload_file(
+                    self._task,
+                    self._metadata,
+                    on_progress=self._emit_progress,
+                )
         except RemoteStateUnknown as exc:
             state = self._client.reconcile(self._task)
             if state == "confirmed":

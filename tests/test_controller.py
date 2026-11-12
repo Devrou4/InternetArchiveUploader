@@ -29,7 +29,7 @@ class FakeClient:
         self.inspections.append(identifier)
         return self.snapshot
 
-    def upload_file(self, task, metadata):
+    def upload_file(self, task, metadata, on_progress=None):
         return self.result
 
 
@@ -116,7 +116,7 @@ def test_finish_does_not_block_on_its_own_thread(tmp_path: Path, qtbot):
     released = []
     original_upload = controller._client.upload_file
 
-    def slow_upload(task_arg, metadata):
+    def slow_upload(task_arg, metadata, on_progress=None):
         released.append(task_arg.id)
         return original_upload(task_arg, metadata)
 
@@ -178,3 +178,75 @@ def test_queue_keeps_dispatching_after_initializer(qtbot, tmp_path: Path):
     assert controller.shutdown() is True
 
     assert [t.id for t in controller.queue.tasks()] == ["a", "b"]
+
+
+def test_controller_updates_only_the_matching_task_progress(tmp_path: Path):
+    controller = UploadController(FakeManager())
+    a = make_task(tmp_path, "a")
+    b = make_task(tmp_path, "b")
+    controller._queue.add(a)
+    controller._queue.add(b)
+
+    controller._on_progress("a", 25, 100)
+
+    assert a.bytes_done == 25
+    assert b.bytes_done == 0
+
+
+def test_progress_signal_reaches_the_ui(qtbot, tmp_path: Path):
+    controller = UploadController(FakeManager())
+    a = make_task(tmp_path, "a")
+    controller._queue.add(a)
+    seen = []
+    controller.progress_changed.connect(lambda tid: seen.append(tid))
+
+    controller._on_progress("a", 10, 100)
+
+    assert seen == ["a"]
+
+
+def test_retry_single_task_only_requeues_that_one(tmp_path: Path):
+    controller = UploadController(FakeManager())
+    a = make_task(tmp_path, "a")
+    b = make_task(tmp_path, "b")
+    for t in (a, b):
+        controller._queue.add(t)
+        controller._queue.task(t.id).state = TaskState.FAILED
+        controller._queue.task(t.id).error = "boom"
+
+    controller.retry("a")
+
+    assert a.state is TaskState.QUEUED
+    assert b.state is TaskState.FAILED
+
+
+def test_progress_refreshes_are_throttled_but_never_drop_the_last_one(tmp_path: Path):
+    """A 1 GiB upload emits ~1000 chunks; redrawing each one stalls the GUI."""
+    controller = UploadController(FakeManager())
+    task = make_task(tmp_path, "a")
+    task.size = 1000
+    controller._queue.add(task)
+    seen = []
+    controller.progress_changed.connect(lambda tid: seen.append(tid))
+
+    for done in range(1, 101):          # 100 rapid chunks
+        controller._on_progress("a", done, 1000)
+    controller._flush_progress()
+
+    assert 0 < len(seen) < 100, f"expected throttling, got {len(seen)} redraws"
+    assert task.bytes_done == 100
+
+
+def test_final_progress_is_not_lost_to_throttling(tmp_path: Path):
+    controller = UploadController(FakeManager())
+    task = make_task(tmp_path, "a")
+    task.size = 100
+    controller._queue.add(task)
+    rendered = []
+    controller.progress_changed.connect(lambda tid: rendered.append(task.bytes_done))
+
+    controller._on_progress("a", 10, 100)     # emitted
+    controller._on_progress("a", 100, 100)    # throttled
+    controller._on_success("a", None)
+
+    assert rendered[-1] == 100

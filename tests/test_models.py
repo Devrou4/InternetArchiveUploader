@@ -46,3 +46,18 @@ def test_item_configs_share_one_metadata_object(tmp_path: Path):
     task_b = UploadTask("t2", tmp_path / "b", "same", "b", tmp_path / "i", 1, 1)
 
     assert task_a.item_key == task_b.item_key
+
+def test_task_tracks_progress_and_clears_on_retry(tmp_path: Path):
+    task = UploadTask("t1", tmp_path / "a", "item", "a", tmp_path / "i", 100, 1)
+
+    task.progress = (40, 100)
+    assert task.progress == (40, 100)
+
+    task.reset_progress()
+    assert task.progress == (0, 100)
+
+
+def test_progress_total_defaults_to_the_file_size(tmp_path: Path):
+    task = UploadTask("t1", tmp_path / "a", "item", "a", tmp_path / "i", 4096, 1)
+
+    assert task.progress == (0, 4096)

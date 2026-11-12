@@ -187,3 +187,75 @@ def test_close_uses_controller_shutdown(visible_window, monkeypatch):
 
     assert visible_window.close() is True
     assert calls == ["shutdown"]
+
+
+def test_progress_signal_updates_the_row(window, tmp_path: Path):
+    from uploader.models import TaskState
+
+    path = tmp_path / "a.mp3"
+    path.write_bytes(b"ID3\x04" + b"\x00" * 28)
+    window.add_paths([str(path)])
+    task = window.tasks.tasks()[0]
+    task.size = 100
+    task.state = TaskState.RUNNING
+
+    window.controller._queue.add(task)
+    window.controller._on_progress(task.id, 42, 100)
+
+    assert "42" in window.tasks.progress_text(0)
+
+
+def test_retry_button_requeues_only_failed_rows(window, tmp_path: Path, monkeypatch):
+    from uploader.models import TaskState
+
+    ok = tmp_path / "a.mp3"
+    ok.write_bytes(b"ID3\x04" + b"\x00" * 28)
+    bad = tmp_path / "b.mp3"
+    bad.write_bytes(b"ID3\x04" + b"\x00" * 28)
+    window.add_paths([str(ok), str(bad)])
+    tasks = window.tasks.tasks()
+    for task in tasks:
+        window.controller._queue.add(task)
+    tasks[0].state = TaskState.SUCCEEDED
+    tasks[1].state = TaskState.FAILED
+    tasks[1].error = "boom"
+    started = []
+    monkeypatch.setattr(window.controller, "start", lambda: started.append(True))
+
+    window.retry_failed()
+
+    assert tasks[0].state is TaskState.SUCCEEDED
+    assert tasks[1].state is TaskState.QUEUED
+    assert started == [True]
+
+
+def test_double_clicking_a_failed_row_retries_that_file(window, tmp_path: Path, monkeypatch):
+    from uploader.models import TaskState
+
+    path = tmp_path / "a.mp3"
+    path.write_bytes(b"ID3\x04" + b"\x00" * 28)
+    window.add_paths([str(path)])
+    task = window.tasks.tasks()[0]
+    window.controller._queue.add(task)
+    task.state = TaskState.FAILED
+    task.error = "boom"
+    window.tasks.refresh()
+    started = []
+    monkeypatch.setattr(window.controller, "start", lambda: started.append(True))
+
+    window.tasks.table.cellDoubleClicked.emit(0, 0)
+
+    assert task.state is TaskState.QUEUED
+    assert started == [True]
+
+
+def test_default_window_is_wide_enough_for_the_progress_column(visible_window):
+    """A 640px window hides Progress/Detail behind a scrollbar; widen by default."""
+    viewport = visible_window.tasks.table.viewport().width()
+    shown_columns = sum(
+        visible_window.tasks.table.columnWidth(c) for c in range(6)  # through Progress
+    )
+
+    assert shown_columns <= viewport, (
+        f"progress column needs {shown_columns}px but only {viewport}px is visible"
+    )
