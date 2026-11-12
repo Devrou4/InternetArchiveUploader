@@ -7,6 +7,7 @@ thread owns that through TaskQueue.
 from PySide6 import QtCore as qtc
 
 from uploader.archive_client import RemoteStateUnknown
+from uploader.resources import optional_keep_awake
 
 
 class UploadWorker(qtc.QObject):
@@ -25,7 +26,8 @@ class UploadWorker(qtc.QObject):
     def run(self):
         self.log.emit(f"{self._task.remote_name}: uploading")
         try:
-            result = self._client.upload_file(self._task, self._metadata)
+            with optional_keep_awake():
+                result = self._client.upload_file(self._task, self._metadata)
         except RemoteStateUnknown as exc:
             state = self._client.reconcile(self._task)
             if state == "confirmed":
