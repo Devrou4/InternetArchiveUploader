@@ -97,3 +97,60 @@ def test_error_messages_do_not_leak_credentials(tmp_path: Path, monkeypatch):
         manager.configure("user@example.com", "secret-token-123")
 
     assert "secret-token-123" not in str(excinfo.value)
+
+PROXY = "http://192.168.195.18:20171"
+
+
+def test_session_applies_proxy_to_both_schemes(tmp_path: Path, monkeypatch):
+    target = tmp_path / "ia.ini"
+    target.write_text("[s3]\naccess = a\n", encoding="utf-8")
+    sessions = []
+
+    class FakeSession(dict):
+        pass
+
+    def fake_get_session(config_file=None, **kw):
+        session = FakeSession()
+        session.proxies = {}
+        sessions.append(session)
+        return session
+
+    monkeypatch.setattr(config.ia, "get_session", fake_get_session)
+    manager = config.ConfigManager(target, proxy=PROXY)
+
+    session = manager.new_session()
+
+    assert session.proxies["http"] == PROXY
+    assert session.proxies["https"] == PROXY
+
+
+def test_configure_authenticates_through_proxy(tmp_path: Path, monkeypatch):
+    seen = {}
+
+    def fake_configure(username, password, config_file, host="archive.org"):
+        seen["proxies"] = os.environ.get("HTTP_PROXY"), os.environ.get("HTTPS_PROXY")
+        Path(config_file).write_text("[s3]\naccess = a\n", encoding="utf-8")
+        return str(config_file)
+
+    monkeypatch.setattr(config.ia, "configure", fake_configure)
+    manager = config.ConfigManager(tmp_path / "ia.ini", proxy=PROXY)
+
+    manager.configure("user@example.com", "pw")
+
+    assert seen["proxies"] == (PROXY, PROXY)
+
+
+def test_configure_restores_environment(tmp_path: Path, monkeypatch):
+    monkeypatch.delenv("HTTP_PROXY", raising=False)
+    monkeypatch.delenv("HTTPS_PROXY", raising=False)
+    monkeypatch.setattr(
+        config.ia,
+        "configure",
+        lambda **kw: Path(kw["config_file"]).write_text("[s3]\n", encoding="utf-8") or kw["config_file"],
+    )
+    manager = config.ConfigManager(tmp_path / "ia.ini", proxy=PROXY)
+
+    manager.configure("u@e.com", "pw")
+
+    assert "HTTP_PROXY" not in os.environ
+    assert "HTTPS_PROXY" not in os.environ

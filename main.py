@@ -17,6 +17,7 @@ from AdditionalMetadataDialog.add_metadata_dialog import AdditionalMetadataDialo
 from uploader.config import ConfigError, ConfigManager
 from uploader.config_paths import resolve_config_path
 from uploader.controller import UploadController
+from uploader.proxy import ProxyError, redact_proxy
 from uploader.models import ItemConfig, TaskState
 from uploader.queue import TaskQueue
 from uploader.resources import resource_path
@@ -72,7 +73,7 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
         self.gridLayout_2.addWidget(self.pb_retry, 17, 4, 1, 1)
         self.gridLayout_2.addWidget(self.tb_settings, 0, 4, 1, 1)
 
-        self.config_label = qtw.QLabel(f"Config: {manager.path}")
+        self.config_label = qtw.QLabel(self._connection_text())
         self.config_label.setWordWrap(True)
         self.gridLayout_2.addWidget(self.config_label, 18, 0, 1, 5)
 
@@ -227,24 +228,57 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
         if self.controller.has_active_tasks():
             qtw.QMessageBox.warning(self, "Uploads running", "Stop dispatching and wait before changing settings.")
             return
-        dialog = SettingsDialog(self.current_config, self.limit_box.value(), self)
+        dialog = SettingsDialog(
+            self.current_config,
+            self.limit_box.value(),
+            self.manager.proxy or "",
+            self,
+        )
         dialog.limit_selected.connect(self.limit_box.setValue)
         dialog.config_selected.connect(self.on_config_selected)
+        dialog.proxy_selected.connect(self.on_proxy_selected)
         dialog.exec()
+
+    def _connection_text(self) -> str:
+        return (
+            f"Config: {self.current_config}\n"
+            f"Proxy: {redact_proxy(self.manager.proxy)}"
+        )
+
+    @qtc.Slot(str)
+    def on_proxy_selected(self, proxy: str):
+        if self.controller.has_active_tasks():
+            qtw.QMessageBox.warning(self, "Uploads running", "Stop dispatching and wait before changing the proxy.")
+            return
+        try:
+            self.manager = self.manager.with_proxy(proxy)
+        except ConfigError as exc:
+            qtw.QMessageBox.warning(self, "Invalid proxy", str(exc))
+            return
+        self.controller = UploadController(self.manager, self.queue)
+        self._connect_controller()
+        self.current_config = self.manager.path
+        self.config_label.setText(self._connection_text())
+        self.update_console(
+            f"Proxy set to {redact_proxy(self.manager.proxy)}; queued files must be re-checked before starting."
+        )
+
+    def _connect_controller(self):
+        self.controller.log.connect(self.update_console)
+        self.controller.status.connect(self.update_status)
+        self.controller.state_changed.connect(self.refresh_tasks)
+        self.controller.item_lookup_failed.connect(self._on_lookup_failed)
 
     def on_config_selected(self, config_path: str):
         new_manager = ConfigManager(Path(config_path))
         if not new_manager.path.is_file():
             qtw.QMessageBox.warning(self, "Not found", f"Configuration file does not exist: {config_path}")
             return
-        self.manager = new_manager
-        self.controller = UploadController(new_manager, self.queue)
-        self.controller.log.connect(self.update_console)
-        self.controller.status.connect(self.update_status)
-        self.controller.state_changed.connect(self.refresh_tasks)
-        self.controller.item_lookup_failed.connect(self._on_lookup_failed)
-        self.current_config = new_manager.path
-        self.config_label.setText(f"Config: {new_manager.path}")
+        self.manager = new_manager.with_proxy(self.manager.proxy)
+        self.controller = UploadController(self.manager, self.queue)
+        self._connect_controller()
+        self.current_config = self.manager.path
+        self.config_label.setText(self._connection_text())
         self.tasks.set_config_path(new_manager.path)
         self.tasks.set_item(self.build_item_config())
         self.update_console("Configuration changed. Queued files must be re-checked before starting.")
@@ -280,6 +314,10 @@ def parse_args(argv: list[str]):
     parser = argparse.ArgumentParser(prog="internetarchive-uploader")
     parser.add_argument("--config", help="Path to the Internet Archive ia.ini file")
     parser.add_argument(
+        "--proxy",
+        help="HTTP proxy for login, queries and uploads, e.g. http://192.168.195.18:20171",
+    )
+    parser.add_argument(
         "--smoke-test",
         action="store_true",
         help="Build the main window, then exit without authenticating",
@@ -301,7 +339,11 @@ def main(argv: list[str] | None = None) -> int:
     if sys.platform == 'win32':
         app.setStyle("Fusion")
 
-    manager = ConfigManager(resolve_config_path(args.config, None))
+    try:
+        manager = ConfigManager(resolve_config_path(args.config, None), proxy=args.proxy)
+    except ConfigError as exc:
+        print(f"invalid proxy: {exc}", file=sys.stderr)
+        return 2
 
     if args.smoke_test:
         icon = qtg.QPixmap(str(resource_path('Internet_Acrhive_Logo_White.png')))

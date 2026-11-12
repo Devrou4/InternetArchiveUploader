@@ -14,7 +14,7 @@ def window(qtbot, tmp_path: Path, monkeypatch):
     config.write_text("[s3]\naccess = a\nsecret = b\n", encoding="utf-8")
     monkeypatch.setattr(app_main.MainWindow, "show", lambda self: None)
     monkeypatch.setattr(app_main.LoginDialog, "show", lambda self: None)
-    window = app_main.MainWindow(ConfigManager(config))
+    window = app_main.MainWindow(ConfigManager(config, proxy="http://proxy.example:3128"))
     qtbot.addWidget(window)
     return window
 
@@ -93,3 +93,24 @@ def test_media_type_manual_choice_wins(window, tmp_path: Path):
     window.add_paths([str(file_path)])
 
     assert window.cb_mediatype.currentText() == "software"
+
+def test_main_window_shows_proxy_in_status(window):
+    assert window.manager.proxy == "http://proxy.example:3128"
+    assert "proxy.example:3128" in window.config_label.text()
+
+
+def test_window_proxy_change_rebuilds_manager(window, tmp_path: Path):
+    window.on_proxy_selected("")
+
+    assert window.manager.proxy is None
+
+
+def test_parse_args_accepts_proxy():
+    args = app_main.parse_args(["--proxy", "http://192.168.195.18:20171"])
+
+    assert args.proxy == "http://192.168.195.18:20171"
+
+
+def test_main_rejects_malformed_proxy_before_network(capsys):
+    assert app_main.main(["--smoke-test", "--proxy", "192.168.195.18:20171"]) == 2
+    assert "scheme" in capsys.readouterr().err

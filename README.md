@@ -13,6 +13,7 @@
 - **可配置并发**：1～8，默认 2。这是“同时上传的文件数”，不是单个文件分片。
 - **类型识别**：按扩展名 + 文件头推荐 `mediatype`；压缩包和未知格式要求人工确认。
 - **自定义认证配置**：`--config` 或图形设置，支持中文与空格路径。
+- **代理支持**：`--proxy` 或图形设置；登录、查询、上传全部走该代理。
 - **手动确认后才上传**：导入文件不会立即上传。
 - **只在 CI 构建**：GitHub Actions 产出 Linux 产物，不在本地打包。
 
@@ -67,6 +68,23 @@ python main.py
 - 配置文件不存在、损坏或无读取权限时明确报错，不会悄悄切换到其他账号。
 - 有上传任务进行中时不能切换配置或退出登录。
 - 凭据文件不会被日志、README、CI 或产物包含。
+
+## 代理设置
+
+图形：Settings → HTTP proxy。
+命令行：
+
+```bash
+./InternetArchiveUploader/InternetArchiveUploader --proxy http://192.168.195.18:20171
+```
+
+- 留空表示直连；空白字符会被忽略。
+- 作用于登录（`ia.configure`）、条目查询和文件上传，包括上传使用的 S3 端点。
+- 必须包含协议和端口：`http://host:port` 或 `https://host:port`。
+- 支持 `http`、`https`、`socks5`、`socks5h`；SOCKS 需额外安装 `PySocks`。
+- 用户名密码可以写在 URL 中（`http://user:pass@host:port`），界面和日志只显示 `***:***`。
+- 有上传任务进行中时不能更换代理。
+- 代理不可用不代表 archive.org 不可用；请先用 `curl -x <proxy> https://archive.org` 自查。
 
 ## 使用流程
 
