@@ -38,14 +38,14 @@ env:
   APP_ID: io.github.jcleng.InternetArchiveUploader
   MANIFEST: packaging/flatpak/io.github.jcleng.InternetArchiveUploader.yaml
   # Must match runtime-version in the manifest.
-  FLATPAK_RUNTIME: '25.08'
+  FLATPAK_RUNTIME: '26.08'
 
 jobs:
   flatpak:
     name: Flatpak bundle
     runs-on: ubuntu-24.04
     container:
-      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-26.08
       options: --privileged
 
     steps:
