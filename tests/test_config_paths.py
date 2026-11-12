@@ -53,8 +53,9 @@ def test_unicode_space_path(tmp_path: Path):
 
 
 def test_tilde_is_expanded(tmp_path: Path, monkeypatch):
-    monkeypatch.setenv("HOME", str(tmp_path))
-
+    """``~`` must expand against the real home, whichever env var holds it."""
+    home = Path.home()
     result = resolve_config_path(cli="~/custom/ia.ini", saved=None, env={})
 
-    assert result == tmp_path / "custom" / "ia.ini"
+    assert result == home / "custom" / "ia.ini"
+    assert "~" not in str(result)

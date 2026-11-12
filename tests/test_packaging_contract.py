@@ -5,13 +5,14 @@ import pytest
 from uploader.packaging_contract import (
     REQUIRED_FILES,
     FORBIDDEN_NAMES,
+    EXPECTED_BINARY,
     check_dist,
 )
 
 
 def make_dist(root: Path) -> Path:
     """Mirror the onedir layout: assets live next to the binary."""
-    (root / "InternetArchiveUploader").write_text("binary", encoding="utf-8")
+    (root / EXPECTED_BINARY()).write_text("binary", encoding="utf-8")
     for relative in REQUIRED_FILES:
         target = root / relative
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -57,7 +58,7 @@ def test_nested_credentials_are_rejected(tmp_path: Path):
 def test_internal_data_layout_is_accepted(tmp_path: Path):
     dist = tmp_path / "dist"
     dist.mkdir()
-    (dist / "InternetArchiveUploader").write_text("binary", encoding="utf-8")
+    (dist / EXPECTED_BINARY()).write_text("binary", encoding="utf-8")
     internal = dist / "_internal"
     for relative in REQUIRED_FILES:
         target = internal / relative
