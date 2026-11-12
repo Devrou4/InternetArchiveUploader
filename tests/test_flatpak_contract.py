@@ -141,3 +141,22 @@ def test_build_commands_extract_without_chown(manifest):
 
     assert "--no-same-owner" in commands
     assert "InternetArchiveUploader" in commands
+
+
+def test_workflow_run_blocks_have_balanced_quotes():
+    """A stray quote breaks the whole step with 'unexpected EOF'."""
+    import re
+    import subprocess
+    import tempfile
+
+    text = (ROOT / ".github" / "workflows" / "build-flatpak.yml").read_text(encoding="utf-8")
+    blocks = re.findall(r"run: \|\n((?:\s{10}.*\n)+)", text)
+    assert blocks, "no run: | blocks found"
+
+    for block in blocks:
+        script = "\n".join(line[10:] for line in block.splitlines() if line.strip())
+        handle = tempfile.NamedTemporaryFile("w", suffix=".sh", delete=False)
+        handle.write(script)
+        handle.close()
+        result = subprocess.run(["bash", "-n", handle.name], capture_output=True, text=True)
+        assert result.returncode == 0, f"{result.stderr}\n---\n{script}"

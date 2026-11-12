@@ -75,12 +75,10 @@ jobs:
           tar --sort=name --owner=0 --group=0 --numeric-owner \
               --mtime='UTC 2020-01-01' -czf "$TARBALL" -C unpacked .
           tar -tzf "$TARBALL" | head -3
-          # The manifest unpacks with --strip-components=1, so verify the
-          # archive has exactly one top-level directory.
-          # The repack below puts everything under "./", so assert the entry
-          # point exists at the archive root instead of counting top dirs.
-          tar -tzf "$TARBALL" | grep -qx './InternetArchiveUploader/InternetArchiveUploader"
-          tar -tzf "$TARBALL" | grep -q './InternetArchiveUploader/_internal/' 
+          # The repack puts everything under "./", so assert the entry point
+          # exists at the archive root instead of counting top-level dirs.
+          tar -tzf "$TARBALL" | grep -qx "./InternetArchiveUploader/InternetArchiveUploader"
+          tar -tzf "$TARBALL" | grep -q "./InternetArchiveUploader/_internal/"
           sha256sum "$TARBALL" | tee bundle.sha256
 
       # flatpak-builder needs a stable, fetchable URL. Serving the file from a
