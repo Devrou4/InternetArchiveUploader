@@ -293,7 +293,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if sys.platform.startswith('linux'):
         os.environ.setdefault("QT_QPA_PLATFORMTHEME", "xdgdesktopportal")
-    app = qtw.QApplication(sys.argv)
+    app = qtw.QApplication.instance()
+    if app is None:
+        app = qtw.QApplication(sys.argv)
     app.setApplicationName("iauploader")
 
     if sys.platform == 'win32':
