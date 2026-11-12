@@ -4,6 +4,7 @@ The manifest is only exercised on CI, so these tests pin the pieces that would
 otherwise fail there for the first time.
 """
 
+import shutil
 from pathlib import Path
 
 import pytest
@@ -143,6 +144,10 @@ def test_build_commands_extract_without_chown(manifest):
     assert "InternetArchiveUploader" in commands
 
 
+@pytest.mark.skipif(
+    not shutil.which("bash"),
+    reason="Workflow run blocks are POSIX shell; no bash on this platform",
+)
 def test_workflow_run_blocks_have_balanced_quotes():
     """A stray quote breaks the whole step with 'unexpected EOF'."""
     import re

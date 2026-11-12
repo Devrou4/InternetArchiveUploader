@@ -49,7 +49,10 @@ modules:
       # Flatpak apps must not ship their own bundled Qt platform plugins that
       # shadow the runtime's; the bundle links its own copies, so verify the
       # essential ones exist rather than deleting them.
-      - test -d ${FLATPAK_DEST}/InternetArchiveUploader/_internal/PySide6
+      # Diagnose the layout in the build log instead of failing blind.
+      - ls -la ${FLATPAK_DEST}/InternetArchiveUploader | head -20
+      - ls -d ${FLATPAK_DEST}/InternetArchiveUploader/_internal/PySide6* || true
+      - test -e ${FLATPAK_DEST}/InternetArchiveUploader/_internal/PySide6
       - install -Dm755 internetarchive-uploader-wrapper ${FLATPAK_DEST}/bin/internetarchive-uploader-wrapper
       - install -Dm644 InternetArchiveUploader.desktop ${FLATPAK_DEST}/share/applications/InternetArchiveUploader.desktop
       - install -Dm644 InternetArchiveUploader.metainfo.xml ${FLATPAK_DEST}/share/metainfo/io.github.jcleng.InternetArchiveUploader.metainfo.xml
