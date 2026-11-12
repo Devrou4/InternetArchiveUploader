@@ -252,7 +252,8 @@ def test_runtime_is_current_and_matches_the_container(manifest):
     version = str(manifest["runtime-version"])
     workflow = (ROOT / ".github" / "workflows" / "build-flatpak.yml").read_text(encoding="utf-8")
 
-    assert version != "24.08", "24.08 is EOL; move to a supported branch"
+    assert version == "25.08", "runtime is pinned to 25.08; update docs and CI together"
+    assert version != "24.08", "24.08 is EOL"
     assert f"freedesktop-{version}" in workflow
     major = int(version.split(".")[0])
     assert major >= 25

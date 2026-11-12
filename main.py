@@ -13,7 +13,6 @@ from PySide6 import QtGui as qtg
 
 from UI.main_window import Ui_MainWindow
 from LoginDialog.login_dialog import LoginDialog
-from AdditionalMetadataDialog.add_metadata_dialog import AdditionalMetadataDialog
 from uploader.config import ConfigError, ConfigManager
 from uploader.config_paths import resolve_config_path, resolve_proxy
 from uploader.controller import UploadController
@@ -40,7 +39,6 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
         # 640px (the Designer default) pushes Progress behind a scrollbar.
         self.resize(max(self.width(), 980), self.height())
         self.manager = manager
-        self.additional_metadata = {}
         self.current_config = manager.path
 
         palette = self.palette()
@@ -101,11 +99,12 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
         self.centralwidget.layout().addLayout(self.central_layout, 0, 0, 1, 1)
 
         self._relabel_import_buttons()
+        # Remove is per row now; additional metadata is gone.
+        for obsolete in (self.tb_remove, self.tb_add_metadata, self.lb_add_metadata):
+            obsolete.hide()
 
         self.tb_file.clicked.connect(self.pick_file)
-        self.tb_folder.clicked.connect(self.pick_folder_notice)
-        self.tb_remove.clicked.connect(self.remove_selected)
-        self.tb_add_metadata.clicked.connect(self.open_additional_metadata_dialog)
+        self.tb_folder.clicked.connect(self.pick_folder)
         self.pb_upload.clicked.connect(self.start_upload)
         self.pb_cancel.clicked.connect(self.cancel_selected)
         self.pb_stop.clicked.connect(self.stop_dispatch)
@@ -173,8 +172,7 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
         """Icon-only tool buttons render blank when the theme resolves no icon."""
         labels = (
             (self.tb_file, "Select file", "Add files to the upload queue"),
-            (self.tb_folder, "Folder", "Folder uploads are not supported yet"),
-            (self.tb_remove, "Remove", "Remove the selected rows"),
+            (self.tb_folder, "Folder", "Add every file inside a folder"),
         )
         for button, text, tip in labels:
             button.setText(text)
@@ -188,8 +186,10 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
         if paths:
             self.add_paths(paths)
 
-    def pick_folder_notice(self):
-        self.update_console("Folder uploads are not supported yet; drop individual files instead.")
+    def pick_folder(self):
+        folder = qtw.QFileDialog.getExistingDirectory(self, "Select a folder to upload")
+        if folder:
+            self.add_paths([folder])
 
     def add_paths(self, paths):
         self.tasks.set_item(self.build_item_config())
@@ -212,10 +212,6 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
         if self.le_title.text().strip() == "" and added:
             self.le_title.setText(added[0].local_path.stem)
 
-    def remove_selected(self):
-        rows = sorted({index.row() for index in self.tasks.table.selectedIndexes()}, reverse=True)
-        self.tasks.remove_rows(rows)
-
     # ---- item ----------------------------------------------------------
     def build_item_config(self):
         identifier = self.le_identifier.text().strip()
@@ -227,7 +223,6 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
             'collection': self.cb_collection.currentText(),
             'mediatype': self.cb_mediatype.currentText(),
         }
-        metadata.update(self.additional_metadata)
         return ItemConfig(identifier=identifier, metadata=metadata)
 
     def start_upload(self):
@@ -258,15 +253,6 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
             self.update_console("Identifier must not contain spaces.")
             return False
         return True
-
-    def open_additional_metadata_dialog(self):
-        self.dialog = AdditionalMetadataDialog()
-        self.dialog.show()
-        self.dialog.send_metadata.connect(self.fetch_additional_metadata)
-
-    @qtc.Slot(dict)
-    def fetch_additional_metadata(self, metadata):
-        self.additional_metadata = metadata
 
     # ---- queue ---------------------------------------------------------
     def stop_dispatch(self):

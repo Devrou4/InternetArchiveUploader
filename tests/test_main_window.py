@@ -68,10 +68,15 @@ def test_stop_dispatch_does_not_claim_cancellation(window):
     assert "continue" in window.statusBar().currentMessage()
 
 
-def test_folder_button_explains_limit(window):
-    window.pick_folder_notice()
+def test_folder_button_never_reports_unsupported(window, monkeypatch):
+    """Regression: the button used to print 'not supported' instead of picking."""
+    monkeypatch.setattr(
+        app_main.qtw.QFileDialog, "getExistingDirectory", lambda *a, **kw: ""
+    )
 
-    assert "not supported" in window.tb_console.toPlainText()
+    window.tb_folder.click()
+
+    assert "not supported" not in window.tb_console.toPlainText().lower()
 
 
 def test_config_switch_updates_bound_config(window, tmp_path: Path):
@@ -135,7 +140,8 @@ def test_file_buttons_are_not_covered_by_task_table(visible_window, qtbot):
     tasks_rect = window.tasks.geometry()
     tasks_rect.moveTopLeft(window.tasks.mapTo(window, window.tasks.rect().topLeft()))
 
-    for name in ("tb_file", "tb_folder", "tb_remove"):
+    # tb_remove is retired: Remove now lives on each row.
+    for name in ("tb_file", "tb_folder"):
         button = getattr(window, name)
         assert button.isVisible(), f"{name} is not visible"
         rect = button.rect()
@@ -163,7 +169,6 @@ def test_import_buttons_are_labelled(visible_window):
     for name, expected in (
         ("tb_file", "Select file"),
         ("tb_folder", "Folder"),
-        ("tb_remove", "Remove"),
     ):
         button = getattr(visible_window, name)
         assert button.text() == expected
@@ -171,7 +176,7 @@ def test_import_buttons_are_labelled(visible_window):
 
 
 def test_toolbar_icons_do_not_leave_blank_buttons(visible_window):
-    for name in ("tb_file", "tb_folder", "tb_remove"):
+    for name in ("tb_file", "tb_folder"):
         button = getattr(visible_window, name)
         assert not button.icon().isNull() or button.text()
 
@@ -311,3 +316,56 @@ def test_double_clicking_a_cancelled_row_requeues_it(window, tmp_path: Path, mon
 
     assert task.state is TaskState.QUEUED
     assert started == [True]
+
+
+def test_folder_button_opens_a_directory_dialog_and_adds_files(window, tmp_path: Path, monkeypatch):
+    folder = tmp_path / "set"
+    (folder / "sub").mkdir(parents=True)
+    (folder / "a.mp3").write_bytes(b"ID3\x04" + b"\x00" * 28)
+    (folder / "sub" / "b.mp3").write_bytes(b"ID3\x04" + b"\x00" * 28)
+    monkeypatch.setattr(
+        app_main.qtw.QFileDialog,
+        "getExistingDirectory",
+        lambda *a, **kw: str(folder),
+    )
+
+    window.tb_folder.click()
+
+    assert window.tasks.rowCount() == 2
+
+
+def test_cancelled_directory_selection_adds_nothing(window, monkeypatch):
+    monkeypatch.setattr(
+        app_main.qtw.QFileDialog, "getExistingDirectory", lambda *a, **kw: ""
+    )
+
+    window.tb_folder.click()
+
+    assert window.tasks.rowCount() == 0
+
+
+def test_global_remove_button_is_gone(window):
+    """Remove now lives on each row; a global one would be ambiguous."""
+    assert not window.tb_remove.isVisible()
+    assert window.tb_remove.text() == "" or window.tb_remove.isHidden()
+
+
+def test_additional_metadata_widgets_are_removed(window):
+    """The feature was removed at the user's request; no state may linger."""
+    assert not window.tb_add_metadata.isVisible()
+    assert not hasattr(window, "additional_metadata")
+    assert not hasattr(window, "fetch_additional_metadata")
+
+
+def test_metadata_has_no_additional_fields_in_payload(window, tmp_path: Path):
+    path = tmp_path / "a.mp3"
+    path.write_bytes(b"ID3\x04" + b"\x00" * 28)
+    window.add_paths([str(path)])
+    window.le_identifier.setText("some-item")
+    window.le_title.setText("T")
+
+    item = window.build_item_config()
+
+    assert set(item.metadata) == {
+        "title", "description", "creator", "subject", "collection", "mediatype"
+    }

@@ -13,9 +13,19 @@ from PySide6 import QtWidgets as qtw
 from uploader.detection import detect_file
 from uploader.models import ItemConfig, TaskState, UploadTask
 
-COLUMNS = ["File", "Remote name", "Item", "Type", "Status", "Progress", "Detail (error)"]
+COLUMNS = [
+    "File",
+    "Remote name",
+    "Item",
+    "Type",
+    "Status",
+    "Progress",
+    "Detail (error)",
+    "Actions",
+]
 COLUMN_PROGRESS = 5
 COLUMN_DETAIL = 6
+COLUMN_REMOVE = 7
 
 
 class TaskTable(qtw.QWidget):
@@ -57,7 +67,8 @@ class TaskTable(qtw.QWidget):
             (3, 80, mode.Interactive),                # Type
             (4, 90, mode.Interactive),                # Status
             (COLUMN_PROGRESS, 135, mode.Interactive),  # Progress
-            (COLUMN_DETAIL, 260, mode.Stretch),       # Detail (error)
+            (COLUMN_DETAIL, 220, mode.Stretch),       # Detail (error)
+            (COLUMN_REMOVE, 90, mode.Fixed),          # per-row Remove
         ):
             header.setSectionResizeMode(column, resize)
             self.table.setColumnWidth(column, width)
@@ -104,36 +115,73 @@ class TaskTable(qtw.QWidget):
         self.last_warning = message
         self.hint.setText(message)
 
+    # Junk that must never be uploaded when a folder is dropped.
+    IGNORED_NAMES = {".DS_Store", "Thumbs.db", "desktop.ini"}
+
+    def _expand(self, path: Path) -> list[Path]:
+        """Turn a folder into its files, keeping paths relative to the folder.
+
+        Hidden entries and known OS junk are skipped: uploading .DS_Store is
+        never what the user meant.
+        """
+        files: list[Path] = []
+        for candidate in sorted(path.rglob("*")):
+            if not candidate.is_file():
+                continue
+            relative = candidate.relative_to(path)
+            if any(part.startswith(".") for part in relative.parts):
+                continue
+            if candidate.name in self.IGNORED_NAMES:
+                continue
+            files.append(candidate)
+        return files
+
     def add_paths(self, paths: list[str]) -> list[UploadTask]:
         added: list[UploadTask] = []
         for raw in paths:
             path = Path(raw)
+            if path.is_dir():
+                files = self._expand(path)
+                if not files:
+                    self._warn(f"No files found in folder: {path.name}")
+                    continue
+                for file_path in files:
+                    relative = file_path.relative_to(path).as_posix()
+                    task = self._make_task(file_path, remote_name=relative)
+                    if task is not None:
+                        added.append(task)
+                continue
             if not path.is_file():
-                self._warn(f"Not a regular file (folders are not supported yet): {path.name}")
+                self._warn(f"Not a regular file: {path.name}")
                 continue
-            key = str(path.resolve())
-            if key in self._seen_paths:
-                continue
-            self._seen_paths.add(key)
-            stat = path.stat()
-            detection = detect_file(path)
-            task = UploadTask(
-                id=str(uuid.uuid4()),
-                local_path=path,
-                item_key=self._item.identifier,
-                remote_name=path.name,
-                config_path=self._config_path,
-                size=stat.st_size,
-                mtime_ns=stat.st_mtime_ns,
-            )
-            task.detected_mediatype = detection.mediatype
-            task.needs_confirmation = detection.needs_confirmation
-            self._tasks.append(task)
-            added.append(task)
+            task = self._make_task(path)
+            if task is not None:
+                added.append(task)
         if added:
             self.hint.setText(f"{len(self._tasks)} file(s) ready. Review metadata, then start.")
         self.refresh()
         return added
+
+    def _make_task(self, path: Path, remote_name: str | None = None) -> "UploadTask | None":
+        key = str(path.resolve())
+        if key in self._seen_paths:
+            return None
+        self._seen_paths.add(key)
+        stat = path.stat()
+        detection = detect_file(path)
+        task = UploadTask(
+            id=str(uuid.uuid4()),
+            local_path=path,
+            item_key=self._item.identifier,
+            remote_name=remote_name or path.name,
+            config_path=self._config_path,
+            size=stat.st_size,
+            mtime_ns=stat.st_mtime_ns,
+        )
+        task.detected_mediatype = detection.mediatype
+        task.needs_confirmation = detection.needs_confirmation
+        self._tasks.append(task)
+        return task
 
     # ---- queries -------------------------------------------------------
     def tasks(self) -> list[UploadTask]:
@@ -225,6 +273,32 @@ class TaskTable(qtw.QWidget):
             return "0%"
         return "—"
 
+    def _install_remove_button(self, row: int, task) -> None:
+        """Every row carries its own Remove button; a running row cannot be removed."""
+        button = qtw.QPushButton("Remove")
+        button.setToolTip("Remove this file from the queue")
+        button.setEnabled(task.state not in (TaskState.RUNNING, TaskState.SUCCEEDED))
+        button.clicked.connect(lambda _=False, tid=task.id: self.remove_task(tid))
+        self.table.setCellWidget(row, COLUMN_REMOVE, button)
+
+    def remove_buttons(self) -> list[qtw.QPushButton]:
+        """Remove buttons in row order (used by tests and the UI)."""
+        buttons = []
+        for row in range(self.table.rowCount()):
+            widget = self.table.cellWidget(row, COLUMN_REMOVE)
+            if widget is not None:
+                buttons.append(widget)
+        return buttons
+
+    def remove_task(self, task_id: str) -> None:
+        row = self.row_for(task_id)
+        if row is None:
+            return
+        if self._tasks[row].state in (TaskState.RUNNING, TaskState.SUCCEEDED):
+            self._warn("Cannot remove a file while it is uploading.")
+            return
+        self.remove_rows([row])
+
     def update_row(self, row: int) -> None:
         """Refresh a single row (used for progress), preserving the selection."""
         if not 0 <= row < len(self._tasks):
@@ -280,6 +354,7 @@ class TaskTable(qtw.QWidget):
                 task.state.value,
                 self._progress_label(task),
                 task.error,
+                "",
             ]
             for column, value in enumerate(cells):
                 item = self.table.item(row, column)
@@ -289,3 +364,4 @@ class TaskTable(qtw.QWidget):
                 item.setText(str(value))
                 if task.state in (TaskState.RUNNING, TaskState.SUCCEEDED):
                     item.setFlags(item.flags() & ~qtc.Qt.ItemFlag.ItemIsEditable)
+            self._install_remove_button(row, task)

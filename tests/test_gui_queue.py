@@ -247,3 +247,126 @@ def test_active_task_ids_lists_only_running_rows(qtbot, tmp_path: Path):
     table.refresh()
 
     assert table.active_task_ids() == [a.id]
+
+
+def test_folder_selection_expands_into_its_files(qtbot, tmp_path: Path):
+    """The Folder button should actually add the files inside, not just warn."""
+    folder = tmp_path / "album"
+    (folder / "disc1").mkdir(parents=True)
+    (folder / "a.mp3").write_bytes(b"ID3\x04" + b"\x00" * 28)
+    (folder / "disc1" / "b.mp3").write_bytes(b"ID3\x04" + b"\x00" * 28)
+    (folder / "notes.txt").write_bytes(b"hello")
+    table = make_window(qtbot)
+
+    added = table.add_paths([str(folder)])
+
+    # Files in subfolders keep their relative path so duplicate basenames from
+    # different folders cannot collide remotely.
+    assert sorted(t.remote_name for t in added) == ["a.mp3", "disc1/b.mp3", "notes.txt"]
+    assert table.rowCount() == 3
+
+
+def test_folder_expansion_skips_hidden_and_junk_files(qtbot, tmp_path: Path):
+    folder = tmp_path / "dir"
+    folder.mkdir()
+    (folder / "keep.mp3").write_bytes(b"ID3\x04" + b"\x00" * 28)
+    (folder / ".hidden.mp3").write_bytes(b"ID3\x04" + b"\x00" * 28)
+    (folder / ".DS_Store").write_bytes(b"junk")
+    table = make_window(qtbot)
+
+    added = table.add_paths([str(folder)])
+
+    assert [t.remote_name for t in added] == ["keep.mp3"]
+
+
+def test_folder_drops_keep_relative_paths_as_remote_names(qtbot, tmp_path: Path):
+    """Two files with the same basename in different subdirs must not collide."""
+    folder = tmp_path / "album"
+    (folder / "cd1").mkdir(parents=True)
+    (folder / "cd2").mkdir(parents=True)
+    (folder / "cd1" / "track.mp3").write_bytes(b"ID3\x04" + b"\x00" * 28)
+    (folder / "cd2" / "track.mp3").write_bytes(b"ID3\x04" + b"\x00" * 28)
+    table = make_window(qtbot)
+
+    added = table.add_paths([str(folder)])
+
+    names = sorted(t.remote_name for t in added)
+    assert names == ["cd1/track.mp3", "cd2/track.mp3"]
+    assert len({t.remote_name for t in added}) == 2
+
+
+def test_folder_with_no_files_reports_a_warning(qtbot, tmp_path: Path):
+    folder = tmp_path / "empty"
+    folder.mkdir()
+    table = make_window(qtbot)
+
+    added = table.add_paths([str(folder)])
+
+    assert added == []
+    assert "empty" in table.last_warning.lower() or "no files" in table.last_warning.lower()
+
+
+def test_folder_is_not_reported_as_unsupported(qtbot, tmp_path: Path):
+    folder = tmp_path / "f"
+    folder.mkdir()
+    (folder / "a.txt").write_bytes(b"x")
+    table = make_window(qtbot)
+
+    table.add_paths([str(folder)])
+
+    assert "not supported" not in table.last_warning.lower()
+
+
+def test_every_row_has_its_own_remove_button(qtbot, tmp_path: Path):
+    table = make_window(qtbot)
+    drop_event(table, [local_uri(tmp_path, "a.bin"), local_uri(tmp_path, "b.bin")])
+
+    buttons = table.remove_buttons()
+
+    assert len(buttons) == 2
+    assert all(b.text().lower() == "remove" for b in buttons)
+
+
+def test_row_remove_button_removes_only_that_row(qtbot, tmp_path: Path):
+    table = make_window(qtbot)
+    drop_event(table, [local_uri(tmp_path, "a.bin"), local_uri(tmp_path, "b.bin")])
+    survivor = table.tasks()[0].id
+    victim = table.tasks()[1].id
+
+    table.remove_buttons()[1].click()
+
+    assert [t.id for t in table.tasks()] == [survivor]
+    assert victim not in [t.id for t in table.tasks()]
+    assert table.rowCount() == 1
+
+
+def test_remove_button_is_disabled_while_that_row_uploads(qtbot, tmp_path: Path):
+    from uploader.models import TaskState
+
+    table = make_window(qtbot)
+    drop_event(table, [local_uri(tmp_path, "a.bin")])
+    table.tasks()[0].state = TaskState.RUNNING
+    table.refresh()
+
+    assert table.remove_buttons()[0].isEnabled() is False
+
+
+def test_remove_buttons_track_rows_after_a_removal(qtbot, tmp_path: Path):
+    table = make_window(qtbot)
+    drop_event(table, [local_uri(tmp_path, "a.bin"), local_uri(tmp_path, "b.bin")])
+    table.remove_buttons()[0].click()
+    first = table.tasks()[0].id
+
+    table.remove_buttons()[0].click()
+
+    assert table.rowCount() == 0
+    assert first not in [t.id for t in table.tasks()]
+
+
+def test_actions_column_has_a_header(qtbot, tmp_path: Path):
+    """An unlabelled column looks like a rendering bug."""
+    table = make_window(qtbot)
+
+    header = table.table.horizontalHeaderItem(7)
+
+    assert header is not None and header.text() == "Actions"

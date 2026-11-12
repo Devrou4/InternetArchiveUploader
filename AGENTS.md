@@ -73,9 +73,10 @@ sandboxes, so do not "fix" a missing library by vendoring it into the repo.
 ```
 main.py                     MainWindow: wiring, layout, CLI (--config, --proxy, --smoke-test)
 LoginDialog/login_dialog.py Credentials + proxy entry; authenticates on a QThread
-UI/, AdditionalMetadataDialog/, assets_rc.py, assets/
-                            Upstream Qt Designer files — generated, do not hand-edit;
-                            keep custom widgets in uploader/widgets/ instead
+UI/, assets_rc.py, assets/ Upstream Qt Designer files — generated, do not hand-edit;
+                            keep custom widgets in uploader/widgets/ instead.
+                            (AdditionalMetadataDialog/ still ships but is no longer
+                            wired up; the feature was removed on request.)
 
 uploader/
   models.py         ItemConfig, UploadTask, TaskState
@@ -92,7 +93,8 @@ uploader/
   controller.py     UploadController: glue; owns queue, threads and the pump timer
   resources.py      resource_path(), user_config_dir(), user_state_dir(), optional_keep_awake()
   packaging_contract.py  check_dist(): bundle content/credential checks
-  widgets/task_table.py   Drop target + task grid (editable Remote name / Item columns)
+  widgets/task_table.py   Drop target + task grid (editable Remote name / Item
+                          columns, per-row Remove button in the Actions column)
   widgets/settings_dialog.py  Config path, proxy, concurrency
 ```
 
