@@ -1,6 +1,9 @@
+import argparse
 import os
 import sys
+from pathlib import Path
 from os import path
+
 from requests import exceptions
 from wakepy import keep, ModeExit
 
@@ -11,6 +14,9 @@ from PySide6 import QtGui as qtg
 from UI.main_window import Ui_MainWindow
 from LoginDialog.login_dialog import LoginDialog
 from AdditionalMetadataDialog.add_metadata_dialog import AdditionalMetadataDialog
+from uploader.config import ConfigError, ConfigManager
+from uploader.config_paths import resolve_config_path
+from uploader.resources import resource_path
 
 import internetarchive as ia
 from internetarchive import exceptions as ia_exception
@@ -88,9 +94,10 @@ class Uploader(qtc.QObject):
 class MainWindow(qtw.QMainWindow, Ui_MainWindow):
     log_signal = qtc.Signal(str)
 
-    def __init__(self):
+    def __init__(self, manager: ConfigManager):
         super().__init__()
         self.setupUi(self)
+        self.manager = manager
 
         palette = self.palette()
         window_color = palette.color(qtg.QPalette.Window)
@@ -99,15 +106,12 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
         else:
             self.theme = 'light'
 
+        self.session = manager.new_session()
 
-        self.session = ia.get_session(config_file="./ia.ini")
-
-        current_path = path.dirname(__file__)
-        assets_folder = path.join(current_path, './assets')
         if self.theme == 'light':
-            pixmap = qtg.QPixmap(path.join(assets_folder, 'Internet_Acrhive_Logo_Black.png'))
+            pixmap = qtg.QPixmap(str(resource_path('Internet_Acrhive_Logo_Black.png')))
         else:
-            pixmap = qtg.QPixmap(path.join(assets_folder, 'Internet_Acrhive_Logo_White.png'))
+            pixmap = qtg.QPixmap(str(resource_path('Internet_Acrhive_Logo_White.png')))
         pixmap = pixmap.scaled(80, 80, qtc.Qt.AspectRatioMode.KeepAspectRatio, qtc.Qt.TransformationMode.SmoothTransformation)
 
         self.lb_logo.setPixmap(pixmap)
@@ -139,8 +143,8 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
         self.upload_thread.finished.connect(self.upload_thread.wait)
         self.log_signal.connect(self.update_console)
 
-        if not path.isfile("./ia.ini"):
-            self.dialog = LoginDialog()
+        if not manager.path.is_file():
+            self.dialog = LoginDialog(manager)
             self.dialog.show()
             self.dialog.logged.connect(self.show)
         else:
@@ -210,19 +214,21 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
     def relog(self):
         msgbox = qtw.QMessageBox()
         msgbox.setWindowTitle("Authentication error")
-        msgbox.setWindowIcon(qtg.QIcon(qtg.QPixmap(os.path.join("assets", "Internet_Archive_Icon.jpg"))))
+        msgbox.setWindowIcon(qtg.QIcon(qtg.QPixmap(str(resource_path('Internet_Archive_Icon.jpg')))))
         msgbox.setText("Authentication error")
         msgbox.setInformativeText("Do you want to re-log?")
         msgbox.setStandardButtons(qtw.QMessageBox.Ok | qtw.QMessageBox.Cancel)
         ret = msgbox.exec()
         if ret == qtw.QMessageBox.Ok:
-            if os.path.isfile("./ia.ini"):
-                os.remove("./ia.ini")
-                self.close()
-                self.dialog = LoginDialog()
-                self.dialog.show()
+            try:
+                os.remove(self.manager.path)
+            except OSError:
+                pass
+            self.close()
+            self.dialog = LoginDialog(self.manager)
+            self.dialog.show()
 
-                self.dialog.logged.connect(self.show)
+            self.dialog.logged.connect(self.show)
 
     @qtc.Slot(dict)
     def fetch_additional_metadata(self, metadata):
@@ -276,14 +282,42 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
         event.accept()
 
 
-if __name__ == "__main__":
+def parse_args(argv: list[str]):
+    parser = argparse.ArgumentParser(prog="internetarchive-uploader")
+    parser.add_argument("--config", help="Path to the Internet Archive ia.ini file")
+    parser.add_argument(
+        "--smoke-test",
+        action="store_true",
+        help="Build the main window, then exit without authenticating",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    args = parse_args(argv)
+
     if sys.platform.startswith('linux'):
-        os.environ["QT_QPA_PLATFORMTHEME"] = "xdgdesktopportal"
+        os.environ.setdefault("QT_QPA_PLATFORMTHEME", "xdgdesktopportal")
     app = qtw.QApplication(sys.argv)
     app.setApplicationName("iauploader")
 
     if sys.platform == 'win32':
         app.setStyle("Fusion")
-    window = MainWindow()
 
-    sys.exit(app.exec())
+    manager = ConfigManager(resolve_config_path(args.config, None))
+
+    if args.smoke_test:
+        icon = qtg.QPixmap(str(resource_path('Internet_Acrhive_Logo_White.png')))
+        if icon.isNull():
+            print("smoke-test: logo resource missing", file=sys.stderr)
+            return 2
+        print("smoke-test: ok")
+        return 0
+
+    window = MainWindow(manager)
+    return app.exec()
+
+
+if __name__ == "__main__":
+    sys.exit(main())
