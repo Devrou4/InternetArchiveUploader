@@ -10,6 +10,14 @@
 - [ ] 测试账号具备上传权限，使用可合法上传的测试文件
 - [ ] 备份现有 `ia.ini`
 
+## F. Flatpak 专项
+
+- [ ] F1 `flatpak install --user --bundle <file>.flatpak` 成功
+- [ ] F2 `flatpak run io.github.jcleng.InternetArchiveUploader` 能打开窗口
+- [ ] F3 用文件选择器选宿主机文件可正常拖入/上传
+- [ ] F4 登录框填代理后能登录，重启后代理被记住
+- [ ] F5 数据写入 `~/.var/app/io.github.jcleng.InternetArchiveUploader/`
+
 ## W. Windows 专项
 
 - [ ] W1 解压 zip 后双击 `InternetArchiveUploader.exe`，窗口正常

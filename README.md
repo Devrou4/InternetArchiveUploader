@@ -32,6 +32,16 @@ SHA256SUMS-linux-<runner> / SHA256SUMS-windows-<runner>
 
 Windows 解压后运行 `InternetArchiveUploader\InternetArchiveUploader.exe`，无需安装 Python。
 
+Flatpak 从 `Build Flatpak` workflow 的 Artifact 获取（`v*` 标签或手动触发时可发布到 Release）：
+
+```bash
+flatpak install --user --bundle io.github.jcleng.InternetArchiveUploader.flatpak
+flatpak run io.github.jcleng.InternetArchiveUploader
+```
+
+沙箱内的数据目录在 `~/.var/app/io.github.jcleng.InternetArchiveUploader/`；
+`ia.ini`、`settings.json`（记住的代理）都落在那里。
+
 ```bash
 sha256sum -c SHA256SUMS
 tar -xzf InternetArchiveUploader-*.tar.gz
@@ -138,10 +148,16 @@ CI：`.github/workflows/build-linux.yml`（名称仍沿用，实际构建两个�
 | --- | --- | --- |
 | Linux | ubuntu-22.04 / 24.04 | `*.tar.gz` |
 | Windows | windows-2022 / 2025 | `*.zip`（内含 `InternetArchiveUploader.exe`） |
+| Flatpak | freedesktop-24.08 容器 | `*.flatpak` |
 
 每个平台都执行：跑测试 → 源码冒烟 → PyInstaller 打包 → 产物内容校验 →
 产物冒烟 → 压缩 + SHA256 → Artifact。另有 `verify-*` 任务在**没有 Python** 的
 对应系统上下载产物、校验和、解压并启动。`v*` 标签时才发布 Release。
+
+Flatpak 由独立的 `.github/workflows/build-flatpak.yml` 构建：下载最近一次成功的 Linux
+产物 → 重打包为确定性 tar.gz（去属主、固定 mtime）→ 改写 manifest 的 URL/sha256 →
+`flatpak-builder` 出包 → 安装并运行 `--smoke-test` → 生成 SHA256SUM。
+手动触发时填写 `release_tag` 即可发布到 Release。
 
 ## 手工验收
 

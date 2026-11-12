@@ -16,6 +16,7 @@
 | 下载后校验 | `sha256sum -c SHA256SUMS` + 解压启动（CI package-smoke job） | success |
 | 代理连通性（本地实测） | `session.get('https://archive.org/services/check_identifier.php')` | HTTP 200，session.proxies 同时含 http/https |
 | 产物清单 | Actions Artifacts | Linux `-ubuntu-22.04`/`-ubuntu-24.04`（各 76 MB）、Windows `-windows-2022`/`-windows-2025`（各 50 MB） |
+| Flatpak 产物 | `Build Flatpak` run 43198270648 → 改后 run @abf8f04 | success；安装 + `smoke-test: ok`，47 MB |
 | Windows 产物 | zip 内 `InternetArchiveUploader.exe`，无 Python 环境启动 | success（verify-windows job） |
 
 说明：
