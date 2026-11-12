@@ -34,7 +34,7 @@ class FakeClient:
         self.reconcile_state = reconcile_state
         self.uploads = []
 
-    def upload_file(self, task, metadata, on_progress=None):
+    def upload_file(self, task, metadata, on_progress=None, cancel=None):
         self.uploads.append((task.id, metadata))
         if self.error:
             raise self.error
@@ -96,7 +96,7 @@ def test_worker_emits_progress_for_its_own_task(tmp_path: Path):
     events = []
 
     class ProgressClient(FakeClient):
-        def upload_file(self, task_arg, metadata, on_progress=None):
+        def upload_file(self, task_arg, metadata, on_progress=None, cancel=None):
             if on_progress:
                 on_progress(1, 2)
                 on_progress(2, 2)
@@ -117,7 +117,7 @@ def test_worker_progress_is_scoped_to_its_task_id(tmp_path: Path):
     got = []
 
     class Client(FakeClient):
-        def upload_file(self, task_arg, metadata, on_progress=None):
+        def upload_file(self, task_arg, metadata, on_progress=None, cancel=None):
             on_progress(5, 5)
             return UploadResult(task_arg.remote_name, True)
 
@@ -127,3 +127,38 @@ def test_worker_progress_is_scoped_to_its_task_id(tmp_path: Path):
         w.run()
 
     assert got == ["t1", "t2"]
+
+
+def test_worker_emits_cancelled_separately_from_failure(tmp_path: Path):
+    from uploader.progress import UploadCancelled
+
+    task = make_task(tmp_path)
+    events = []
+
+    class CancellingClient(FakeClient):
+        def upload_file(self, task_arg, metadata, on_progress=None, cancel=None):
+            raise UploadCancelled("user cancelled")
+
+    worker = workers.UploadWorker(task, CancellingClient(), None)
+    worker.cancelled.connect(lambda tid: events.append(("cancelled", tid)))
+    worker.failed.connect(lambda err: events.append(("failed", err)))
+    worker.run()
+
+    assert events == [("cancelled", "t1")]
+
+
+def test_worker_passes_the_cancel_token_to_the_client(tmp_path: Path):
+    from uploader.progress import CancelToken
+
+    task = make_task(tmp_path)
+    token = CancelToken()
+    seen = []
+
+    class Client(FakeClient):
+        def upload_file(self, task_arg, metadata, on_progress=None, cancel=None):
+            seen.append(cancel is token)
+            return UploadResult(task_arg.remote_name, True)
+
+    workers.UploadWorker(task, Client(), None, cancel=token).run()
+
+    assert seen == [True]

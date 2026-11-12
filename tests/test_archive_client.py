@@ -182,3 +182,26 @@ def test_progress_callback_received_bytes_reach_the_caller(tmp_path: Path):
     client.upload_file(make_task(tmp_path), metadata=None, on_progress=lambda d, t: seen.append(d))
 
     assert seen and seen[-1] > 0
+
+
+def test_cancelled_upload_raises_upload_cancelled(tmp_path: Path):
+    from uploader.progress import CancelToken, UploadCancelled
+
+    class SlowSession(FakeSession):
+        def get_item(self, identifier):
+            class FakeItem:
+                def load(self_inner):
+                    pass
+
+                def upload_file(self_inner, body, key=None, metadata=None, **kw):
+                    body.read()          # token is already cancelled
+                    return None
+
+            return FakeItem()
+
+    client = ArchiveClient(SlowSession(metadata=None))
+    token = CancelToken()
+    token.cancel()
+
+    with pytest.raises(UploadCancelled):
+        client.upload_file(make_task(tmp_path), metadata=None, cancel=token)

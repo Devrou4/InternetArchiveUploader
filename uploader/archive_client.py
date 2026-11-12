@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from uploader.models import UploadTask
-from uploader.progress import CountingFile
+from uploader.progress import CountingFile, UploadCancelled
 
 
 class ArchiveError(Exception):
@@ -78,6 +78,7 @@ class ArchiveClient:
         task: UploadTask,
         metadata: dict | None,
         on_progress=None,
+        cancel=None,
     ) -> UploadResult:
         self._assert_unchanged(task)
 
@@ -89,12 +90,18 @@ class ArchiveClient:
 
         item = self._session.get_item(task.item_key)
         try:
-            with CountingFile(task.local_path, on_progress=on_progress) as body:
+            with CountingFile(
+                task.local_path, on_progress=on_progress, cancel=cancel
+            ) as body:
                 response = item.upload_file(
                     body,
                     key=task.remote_name,
                     metadata=metadata,
                 )
+        except UploadCancelled:
+            # Cancellation is a user decision, not a failure: re-raise unchanged
+            # so callers never retry it.
+            raise
         except Exception as exc:
             raise self._classify(exc) from None
 

@@ -29,7 +29,7 @@ class FakeClient:
         self.inspections.append(identifier)
         return self.snapshot
 
-    def upload_file(self, task, metadata, on_progress=None):
+    def upload_file(self, task, metadata, on_progress=None, cancel=None):
         return self.result
 
 
@@ -116,7 +116,7 @@ def test_finish_does_not_block_on_its_own_thread(tmp_path: Path, qtbot):
     released = []
     original_upload = controller._client.upload_file
 
-    def slow_upload(task_arg, metadata, on_progress=None):
+    def slow_upload(task_arg, metadata, on_progress=None, cancel=None):
         released.append(task_arg.id)
         return original_upload(task_arg, metadata)
 
@@ -250,3 +250,74 @@ def test_final_progress_is_not_lost_to_throttling(tmp_path: Path):
     controller._on_success("a", None)
 
     assert rendered[-1] == 100
+
+
+def test_cancel_request_sets_the_token_for_a_running_task(qtbot, tmp_path: Path):
+    from uploader.progress import CancelToken
+
+    controller = UploadController(FakeManager())
+    task = make_task(tmp_path, "a")
+    controller._queue.add(task)
+    token = CancelToken()
+    controller._tokens["a"] = token
+
+    controller.cancel("a")
+
+    assert token.cancelled is True
+
+
+def test_cancel_of_an_unknown_task_is_harmless(qtbot, tmp_path: Path):
+    controller = UploadController(FakeManager())
+
+    controller.cancel("nope")  # must not raise
+
+
+def test_worker_reports_cancelled_and_state_becomes_cancelled(qtbot, tmp_path: Path):
+    from uploader.models import TaskState
+
+    controller = UploadController(FakeManager())
+    task = make_task(tmp_path, "a")
+    controller._queue.add(task)
+    controller._queue.task("a").state = TaskState.RUNNING
+
+    controller._on_cancelled("a")
+
+    assert task.state is TaskState.CANCELLED
+
+
+def test_cancel_token_survives_until_the_upload_really_ends(tmp_path: Path):
+    """_finish() must not drop the token while the transfer is still running,
+    otherwise cancel() has nothing to signal and only relabels the row."""
+    from uploader.progress import CancelToken
+
+    controller = UploadController(FakeManager())
+    task = make_task(tmp_path, "a")
+    controller._queue.add(task)
+    token = CancelToken()
+    controller._tokens["a"] = token
+
+    controller.cancel("a")
+    assert token.cancelled is True
+
+    # Simulate the worker finally reporting in.
+    controller._on_cancelled("a")
+    assert "a" not in controller._tokens
+
+
+def test_stop_dispatch_must_not_clear_cancel_tokens(tmp_path: Path):
+    """Regression: the throttling fields were accidentally re-initialised inside
+    stop_dispatch(), which dropped every live CancelToken and silently turned
+    "Stop dispatching" into "cancel is now powerless"."""
+    from uploader.progress import CancelToken
+
+    controller = UploadController(FakeManager())
+    task = make_task(tmp_path, "a")
+    controller._queue.add(task)
+    token = CancelToken()
+    controller._tokens["a"] = token
+
+    controller.stop_dispatch()
+
+    assert controller._tokens["a"] is token
+    controller.cancel("a")
+    assert token.cancelled is True

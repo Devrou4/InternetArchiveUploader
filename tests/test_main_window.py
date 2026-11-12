@@ -259,3 +259,55 @@ def test_default_window_is_wide_enough_for_the_progress_column(visible_window):
     assert shown_columns <= viewport, (
         f"progress column needs {shown_columns}px but only {viewport}px is visible"
     )
+
+
+def test_cancel_button_cancels_only_selected_running_rows(window, tmp_path: Path, monkeypatch):
+    from uploader.models import TaskState
+
+    paths = []
+    for name in ("a.mp3", "b.mp3"):
+        p = tmp_path / name
+        p.write_bytes(b"ID3\x04" + b"\x00" * 28)
+        paths.append(str(p))
+    window.add_paths(paths)
+    tasks = window.tasks.tasks()
+    for t in tasks:
+        window.controller._queue.add(t)
+    tasks[0].state = TaskState.RUNNING
+    tasks[1].state = TaskState.RUNNING
+    window.tasks.refresh()
+    cancelled = []
+    monkeypatch.setattr(window.controller, "cancel", lambda tid: cancelled.append(tid))
+    window.tasks.table.selectRow(0)
+
+    window.cancel_selected()
+
+    assert cancelled == [tasks[0].id]
+
+
+def test_cancel_selected_with_nothing_selected_is_a_no_op(window, monkeypatch):
+    called = []
+    monkeypatch.setattr(window.controller, "cancel", lambda tid: called.append(tid))
+
+    window.cancel_selected()
+
+    assert called == []
+
+
+def test_double_clicking_a_cancelled_row_requeues_it(window, tmp_path: Path, monkeypatch):
+    from uploader.models import TaskState
+
+    p = tmp_path / "a.mp3"
+    p.write_bytes(b"ID3\x04" + b"\x00" * 28)
+    window.add_paths([str(p)])
+    task = window.tasks.tasks()[0]
+    window.controller._queue.add(task)
+    task.state = TaskState.CANCELLED
+    window.tasks.refresh()
+    started = []
+    monkeypatch.setattr(window.controller, "start", lambda: started.append(True))
+
+    window.tasks.table.cellDoubleClicked.emit(0, 0)
+
+    assert task.state is TaskState.QUEUED
+    assert started == [True]

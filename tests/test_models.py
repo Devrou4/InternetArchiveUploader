@@ -61,3 +61,13 @@ def test_progress_total_defaults_to_the_file_size(tmp_path: Path):
     task = UploadTask("t1", tmp_path / "a", "item", "a", tmp_path / "i", 4096, 1)
 
     assert task.progress == (0, 4096)
+
+
+def test_cancelled_is_a_distinct_state(tmp_path: Path):
+    from uploader.models import TaskState
+
+    assert TaskState.CANCELLED.value == "cancelled"
+
+    task = UploadTask("t1", tmp_path / "a", "item", "a", tmp_path / "i", 10, 1)
+    task.state = TaskState.CANCELLED
+    assert task.state is TaskState.CANCELLED

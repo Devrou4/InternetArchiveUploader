@@ -12,14 +12,38 @@ the file size.
 """
 
 import os
+import threading
 from pathlib import Path
+
+
+class UploadCancelled(Exception):
+    """Raised inside the upload loop when the user cancels a transfer."""
+
+
+class CancelToken:
+    """Thread-safe cancellation flag shared between the UI and a worker.
+
+    Cancellation cannot interrupt a socket write in progress; it aborts at the
+    next chunk boundary, so at most one chunk is thrown away.
+    """
+
+    def __init__(self):
+        self._event = threading.Event()
+
+    def cancel(self) -> None:
+        self._event.set()
+
+    @property
+    def cancelled(self) -> bool:
+        return self._event.is_set()
 
 
 class CountingFile:
     """File wrapper reporting `(bytes_read, total)` while the library reads it."""
 
-    def __init__(self, path, on_progress=None):
+    def __init__(self, path, on_progress=None, cancel=None):
         self._handle = open(Path(path), "rb")
+        self._cancel = cancel
         self._total = os.fstat(self._handle.fileno()).st_size
         self._done = 0
         self._last_reported = -1
@@ -39,6 +63,8 @@ class CountingFile:
 
     # ---- file protocol -------------------------------------------------
     def read(self, size: int = -1) -> bytes:
+        if self._cancel is not None and self._cancel.cancelled:
+            raise UploadCancelled("Upload cancelled by the user")
         data = self._handle.read(size)
         self._done = self._handle.tell()
         self._report()

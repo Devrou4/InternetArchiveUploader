@@ -56,7 +56,7 @@ class TaskTable(qtw.QWidget):
             (2, 150, mode.Interactive),               # Item
             (3, 80, mode.Interactive),                # Type
             (4, 90, mode.Interactive),                # Status
-            (COLUMN_PROGRESS, 100, mode.Interactive),  # Progress
+            (COLUMN_PROGRESS, 135, mode.Interactive),  # Progress
             (COLUMN_DETAIL, 260, mode.Stretch),       # Detail (error)
         ):
             header.setSectionResizeMode(column, resize)
@@ -157,7 +157,19 @@ class TaskTable(qtw.QWidget):
         return item.text() if item else ""
 
     def retryable_task_ids(self) -> list[str]:
-        return [task.id for task in self._tasks if task.state is TaskState.FAILED]
+        return [
+            task.id
+            for task in self._tasks
+            if task.state in (TaskState.FAILED, TaskState.CANCELLED)
+        ]
+
+    def active_task_ids(self) -> list[str]:
+        """Rows that are currently transferring (cancellable)."""
+        return [task.id for task in self._tasks if task.state is TaskState.RUNNING]
+
+    def selected_task_ids(self) -> list[str]:
+        rows = sorted({index.row() for index in self.table.selectedIndexes()})
+        return [self._tasks[r].id for r in rows if 0 <= r < len(self._tasks)]
 
     def startable_tasks(self) -> list[UploadTask]:
         return [
@@ -205,6 +217,8 @@ class TaskTable(qtw.QWidget):
             # Do not show a full bar: reaching 100% of bytes does not mean the
             # server accepted the file.
             return f"failed at {task.percent}%"
+        if task.state is TaskState.CANCELLED:
+            return f"cancelled at {task.percent}%"
         if task.state is TaskState.RUNNING:
             return f"{task.percent}%"
         if task.state is TaskState.QUEUED:

@@ -72,6 +72,7 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
         self.limit_box.setValue(2)
         self.limit_box.setToolTip("Simultaneous file uploads")
 
+        self.pb_cancel = qtw.QPushButton("Cancel selected")
         self.pb_stop = qtw.QPushButton("Stop dispatching")
         self.pb_retry = qtw.QPushButton("Retry failed")
         self.tb_settings = qtw.QToolButton()
@@ -82,6 +83,7 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
         controls.addWidget(qtw.QLabel("Concurrent uploads:"))
         controls.addWidget(self.limit_box)
         controls.addStretch(1)
+        controls.addWidget(self.pb_cancel)
         controls.addWidget(self.pb_stop)
         controls.addWidget(self.pb_retry)
         self.controls_row = qtw.QWidget()
@@ -105,10 +107,13 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
         self.tb_remove.clicked.connect(self.remove_selected)
         self.tb_add_metadata.clicked.connect(self.open_additional_metadata_dialog)
         self.pb_upload.clicked.connect(self.start_upload)
+        self.pb_cancel.clicked.connect(self.cancel_selected)
         self.pb_stop.clicked.connect(self.stop_dispatch)
         self.pb_retry.clicked.connect(self.retry_failed)
         self.tb_settings.clicked.connect(self.open_settings)
         self.tasks.table.cellDoubleClicked.connect(self._on_row_double_clicked)
+        self.tasks.table.setContextMenuPolicy(qtc.Qt.ContextMenuPolicy.CustomContextMenu)
+        self.tasks.table.customContextMenuRequested.connect(self._on_table_context_menu)
         self.limit_box.valueChanged.connect(self.controller.set_limit)
 
         self.controller.log.connect(self.update_console)
@@ -267,6 +272,52 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
     def stop_dispatch(self):
         self.controller.stop_dispatch()
 
+    def cancel_selected(self):
+        """Cancel the selected transfers; only active rows are affected."""
+        active = set(self.tasks.active_task_ids())
+        targets = [tid for tid in self.tasks.selected_task_ids() if tid in active]
+        if not targets:
+            ids = set(self.tasks.selected_task_ids())
+            already_done = [
+                t for t in self.tasks.tasks()
+                if t.id in ids and t.state not in (TaskState.RUNNING, TaskState.QUEUED, TaskState.DRAFT)
+            ]
+            if already_done:
+                self.update_console("Selected files are not uploading.")
+            else:
+                self.update_console("Select a file that is currently uploading, then press Cancel selected.")
+            return
+        for task_id in targets:
+            self.controller.cancel(task_id)
+        self.update_console(f"Cancelling {len(targets)} file(s)…")
+
+    @qtc.Slot(qtc.QPoint)
+    def _on_table_context_menu(self, position):
+        row = self.tasks.table.rowAt(position.y())
+        if row < 0:
+            return
+        tasks = self.tasks.tasks()
+        if not 0 <= row < len(tasks):
+            return
+        task = tasks[row]
+        menu = qtw.QMenu(self)
+        if task.state is TaskState.RUNNING:
+            menu.addAction("Cancel this upload", lambda: self._cancel_one(task.id))
+        if task.state in (TaskState.FAILED, TaskState.CANCELLED):
+            menu.addAction("Retry this file", lambda: self._retry_one(task.id))
+        if menu.isEmpty():
+            return
+        menu.exec(self.tasks.table.viewport().mapToGlobal(position))
+
+    def _cancel_one(self, task_id: str):
+        self.controller.cancel(task_id)
+        self.update_console("Cancelling 1 file…")
+
+    def _retry_one(self, task_id: str):
+        self.controller.retry(task_id)
+        self.controller.start()
+        self.update_console("Retrying 1 file…")
+
     def retry_failed(self):
         for task in self.queue.tasks():
             if task.state is TaskState.FAILED:
@@ -291,7 +342,7 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
         if not 0 <= row < len(tasks):
             return
         task = tasks[row]
-        if task.state is not TaskState.FAILED:
+        if task.state not in (TaskState.FAILED, TaskState.CANCELLED):
             return
         self.controller.retry(task.id)
         self.controller.start()

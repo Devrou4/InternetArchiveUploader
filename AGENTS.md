@@ -62,6 +62,11 @@ sandboxes, so do not "fix" a missing library by vendoring it into the repo.
 - **Retry is per file.** `UploadController.retry(task_id)` requeues exactly one
   task and resets its attempt count and progress; double-clicking a failed row
   is the UI shortcut.
+- **Cancellation is cooperative.** A `CancelToken` is checked before every
+  chunk read, so a transfer stops at the next 1 MiB boundary — never mid-write.
+  `UploadCancelled` must bypass error classification (it is a user decision, not
+  a retryable failure). `TaskState.CANCELLED` is distinct from `FAILED` and can
+  be requeued the same way.
 
 ## Architecture
 
@@ -129,6 +134,16 @@ uploader/
   have left the machine without the server accepting the file.
 - Redraws go through `TaskTable.update_row()`, not a full `refresh()`, so the
   selection survives.
+
+### Cancellation
+
+- The token lives in `UploadController._tokens` and is removed **only** when the
+  worker reports back. Never re-initialise controller state inside
+  `stop_dispatch()`; doing so dropped live tokens and made Cancel a no-op
+  (regression test: `test_stop_dispatch_must_not_clear_cancel_tokens`).
+- Only `RUNNING` rows are cancellable from the UI; a cancelled row keeps its
+  partial percentage for context.
+- A cancelled upload is not retried automatically.
 
 ### Retry policy
 

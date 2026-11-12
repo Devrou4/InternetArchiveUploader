@@ -9,6 +9,7 @@ class TaskState(str, Enum):
     RUNNING = "running"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 @dataclass

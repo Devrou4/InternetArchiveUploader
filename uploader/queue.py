@@ -185,9 +185,25 @@ class TaskQueue:
         task.state = TaskState.FAILED
         task.error = message
 
+    def cancel(self, task_id: str) -> None:
+        """Mark a task cancelled and free its slot.
+
+        For a running task this only removes it from the active set; the worker
+        notices its CancelToken and aborts at the next chunk boundary.
+        """
+        task = self._tasks.get(task_id)
+        if task is None or task.state is TaskState.SUCCEEDED:
+            return
+        task.state = TaskState.CANCELLED
+        task.error = "Cancelled by the user"
+        self._active.discard(task_id)
+        prep = self._prepared.get(task.item_key)
+        if prep and prep.initializer_task_id == task_id:
+            self._dispatched_initializer.discard(task_id)
+
     def retry_failed(self, task_id: str, now: float) -> None:
         task = self._tasks[task_id]
-        if task.state is not TaskState.FAILED:
+        if task.state not in (TaskState.FAILED, TaskState.CANCELLED):
             return
         task.state = TaskState.QUEUED
         task.attempts = 0

@@ -234,3 +234,41 @@ def test_retry_resets_attempts_and_progress(tmp_path: Path):
 
     assert t.attempts == 0
     assert t.progress[0] == 0
+
+
+def test_cancel_moves_a_running_task_out_of_the_active_set(tmp_path: Path):
+    queue = TaskQueue(limit=2)
+    a = task(tmp_path, "a", item_key="x")
+    queue.add(a)
+    queue.start()
+    queue.next_ready(now=0.0)
+    assert queue.running_count == 1
+
+    queue.cancel("a")
+
+    assert queue.running_count == 0
+    assert a.state is TaskState.CANCELLED
+
+
+def test_cancelled_task_can_be_requeued(tmp_path: Path):
+    queue = TaskQueue(limit=1)
+    a = task(tmp_path, "a", item_key="x")
+    queue.add(a)
+    queue.start()
+    queue.next_ready(now=0.0)
+    queue.cancel("a")
+
+    queue.retry_failed("a", now=1.0)
+
+    assert a.state is TaskState.QUEUED
+    assert a.attempts == 0
+
+
+def test_cancel_of_a_queued_task_prevents_dispatch(tmp_path: Path):
+    queue = TaskQueue(limit=1)
+    a = task(tmp_path, "a", item_key="x")
+    queue.add(a)
+    queue.start()
+    queue.cancel("a")
+
+    assert queue.next_ready(now=0.0) == []

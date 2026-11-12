@@ -221,3 +221,29 @@ def test_detail_column_is_wide_enough_to_read_the_error(qtbot, tmp_path: Path):
 
     assert table.table.columnWidth(6) >= 200
     assert "403" in table.detail_text(0)
+
+
+def test_cancelled_row_shows_cancelled_and_offers_requeue(qtbot, tmp_path: Path):
+    from uploader.models import TaskState
+
+    table = make_window(qtbot)
+    drop_event(table, [local_uri(tmp_path, "a.bin")])
+    task = table.tasks()[0]
+    task.state = TaskState.CANCELLED
+    table.refresh()
+
+    assert "cancelled" in table.progress_text(0).lower() or "取消" in table.progress_text(0)
+    assert task.id in table.retryable_task_ids()
+
+
+def test_active_task_ids_lists_only_running_rows(qtbot, tmp_path: Path):
+    from uploader.models import TaskState
+
+    table = make_window(qtbot)
+    drop_event(table, [local_uri(tmp_path, "a.bin"), local_uri(tmp_path, "b.bin")])
+    a, b = table.tasks()
+    a.state = TaskState.RUNNING
+    b.state = TaskState.SUCCEEDED
+    table.refresh()
+
+    assert table.active_task_ids() == [a.id]

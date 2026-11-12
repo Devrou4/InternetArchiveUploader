@@ -13,6 +13,7 @@ from uploader.config import ConfigError, ConfigManager
 from uploader.item_service import ItemSnapshot
 from uploader.models import ItemConfig, TaskState, UploadTask
 from uploader.queue import TaskQueue
+from uploader.progress import CancelToken
 from uploader.workers import UploadWorker
 
 
@@ -41,6 +42,7 @@ class UploadController(qtc.QObject):
         self._progress_interval = 0.2
         self._last_progress_emit: dict[str, float] = {}
         self._pending_progress: set[str] = set()
+        self._tokens: dict[str, CancelToken] = {}
 
     # ---- configuration -------------------------------------------------
     @property
@@ -96,12 +98,9 @@ class UploadController(qtc.QObject):
         self._pump()
 
     def stop_dispatch(self) -> None:
+        # Only stop dispatching. Reset state belongs in __init__; doing it here
+        # used to wipe live CancelTokens.
         self._dispatch_enabled = False
-        # Progress redraw throttling: the library reads 1 MiB chunks, so a large
-        # file would otherwise repaint the table ~1000 times.
-        self._progress_interval = 0.2
-        self._last_progress_emit: dict[str, float] = {}
-        self._pending_progress: set[str] = set()
         self._queue.stop_dispatch()
         self.status.emit("Stopped dispatching new files; running uploads continue.")
 
@@ -128,6 +127,30 @@ class UploadController(qtc.QObject):
                 return False
         return True
 
+    def cancel(self, task_id: str) -> None:
+        """Ask a running upload to stop; it aborts at the next chunk boundary."""
+        try:
+            self._queue.cancel(task_id)
+        except KeyError:
+            return
+        token = self._tokens.get(task_id)
+        if token is not None:
+            token.cancel()
+        self.state_changed.emit()
+
+    @qtc.Slot(str)
+    def _on_cancelled(self, task_id: str) -> None:
+        self._queue.cancel(task_id)
+        self._tokens.pop(task_id, None)
+        self._flush_progress()
+        try:
+            name = self._queue.task(task_id).remote_name
+        except KeyError:
+            name = task_id
+        self.log.emit(f"{name}: cancelled")
+        self._finish(task_id)
+        self.state_changed.emit()
+
     def retry(self, task_id: str) -> None:
         self._queue.retry_failed(task_id, now=self._now())
         self.state_changed.emit()
@@ -143,7 +166,9 @@ class UploadController(qtc.QObject):
     def _launch(self, task: UploadTask) -> None:
         metadata = self._queue.metadata_for_task(task)
         thread = qtc.QThread(self)
-        worker = UploadWorker(task, self.client(), metadata)
+        token = CancelToken()
+        self._tokens[task.id] = token
+        worker = UploadWorker(task, self.client(), metadata, cancel=token)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
 
@@ -152,6 +177,7 @@ class UploadController(qtc.QObject):
         worker.unknown.connect(lambda message, tid=task.id: self._on_unknown(tid, message))
         worker.log.connect(self.log)
         worker.progress.connect(self._on_progress)
+        worker.cancelled.connect(self._on_cancelled)
 
         self._threads[task.id] = thread
         self._workers[task.id] = worker
@@ -159,6 +185,7 @@ class UploadController(qtc.QObject):
         self.state_changed.emit()
 
     def _finish(self, task_id: str) -> None:
+        self._tokens.pop(task_id, None)
         """Retire a finished worker without blocking the GUI thread.
 
         This runs from a slot invoked by the worker's own signal, so calling

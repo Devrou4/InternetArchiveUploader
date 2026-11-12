@@ -87,3 +87,45 @@ def test_exposes_the_attributes_requests_relies_on(tmp_path: Path):
         assert handle.seekable()
         assert handle.tell() == 0
         assert len(handle.read()) == 42
+
+
+def test_cancel_token_aborts_the_read_loop(tmp_path: Path):
+    """Cancellation aborts at the next chunk boundary, not mid-write."""
+    from uploader.progress import CancelToken, UploadCancelled
+
+    path = tmp_path / "big.bin"
+    path.write_bytes(b"x" * 5000)
+    token = CancelToken()
+    reads = []
+
+    with CountingFile(path, on_progress=lambda d, t: reads.append(d), cancel=token) as handle:
+        handle.read(1000)
+        token.cancel()
+        with pytest.raises(UploadCancelled):
+            handle.read(1000)
+
+    assert reads == [1000]
+
+
+def test_cancel_before_first_read_aborts_immediately(tmp_path: Path):
+    from uploader.progress import CancelToken, UploadCancelled
+
+    path = tmp_path / "a.bin"
+    path.write_bytes(b"x" * 100)
+    token = CancelToken()
+    token.cancel()
+
+    with CountingFile(path, cancel=token) as handle:
+        with pytest.raises(UploadCancelled):
+            handle.read(10)
+
+
+def test_uncancelled_token_never_interferes(tmp_path: Path):
+    from uploader.progress import CancelToken
+
+    path = tmp_path / "a.bin"
+    path.write_bytes(b"x" * 100)
+    token = CancelToken()
+
+    with CountingFile(path, cancel=token) as handle:
+        assert handle.read(100) == b"x" * 100
