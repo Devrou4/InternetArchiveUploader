@@ -178,7 +178,3 @@ class UploadController(qtc.QObject):
         self._finish(task_id)
         self.log.emit(message)
         self.state_changed.emit()
-
-
-def build_task_from_rows(rows, config_path: Path) -> list[UploadTask]:
-    return [task for task in rows]

@@ -39,6 +39,10 @@ class TaskTable(qtw.QWidget):
         self.table.setHorizontalHeaderLabels(COLUMNS)
         self.table.setSelectionBehavior(qtw.QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.horizontalHeader().setStretchLastSection(True)
+        # Editable columns: Remote name (1) and Item (2). Everything else is
+        # derived from the file or the queue state.
+        self.table.itemChanged.connect(self._on_item_changed)
+        self._refreshing = False
         layout.addWidget(self.table)
 
     # ---- item binding --------------------------------------------------
@@ -160,7 +164,25 @@ class TaskTable(qtw.QWidget):
         self.refresh()
 
     # ---- rendering -----------------------------------------------------
+    def _on_item_changed(self, item) -> None:
+        if self._refreshing or item is None:
+            return
+        row, column = item.row(), item.column()
+        if not 0 <= row < len(self._tasks):
+            return
+        if column == 1:
+            self.set_remote_name(row, item.text().strip())
+        elif column == 2:
+            self.set_item_key_for_rows([row], item.text().strip())
+
     def refresh(self) -> None:
+        self._refreshing = True
+        try:
+            self._render()
+        finally:
+            self._refreshing = False
+
+    def _render(self) -> None:
         self.table.setRowCount(len(self._tasks))
         for row, task in enumerate(self._tasks):
             mediatype = getattr(task, "detected_mediatype", None)

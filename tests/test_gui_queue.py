@@ -112,3 +112,28 @@ def test_remove_selected_rows(qtbot, tmp_path: Path):
     table.remove_rows([0])
 
     assert [t.remote_name for t in table.tasks()] == ["b.bin"]
+
+def test_editing_the_remote_name_column_updates_the_task(qtbot, tmp_path: Path):
+    """The column is editable; without a handler the edit is silently dropped
+    and a conflict cannot be resolved from the UI."""
+    table = make_window(qtbot)
+    drop_event(table, [local_uri(tmp_path, "a.bin")])
+    task = table.tasks()[0]
+
+    item = table.table.item(0, 1)
+    item.setText("renamed.bin")
+    table.table.itemChanged.emit(item)
+
+    assert task.remote_name == "renamed.bin"
+
+
+def test_editing_remote_name_to_a_duplicate_is_rejected(qtbot, tmp_path: Path):
+    table = make_window(qtbot)
+    drop_event(table, [local_uri(tmp_path, "a.bin"), local_uri(tmp_path, "b.bin")])
+
+    item = table.table.item(0, 1)
+    item.setText("b.bin")
+    table.table.itemChanged.emit(item)
+
+    assert table.tasks()[0].remote_name == "a.bin"
+    assert "same remote name" in table.last_warning
