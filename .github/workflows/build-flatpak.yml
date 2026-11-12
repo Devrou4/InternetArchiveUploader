@@ -117,6 +117,23 @@ jobs:
           grep -n -B2 -A3 'uploader-bundle.tar.gz' "$MANIFEST" | head -10
           python3 -c "import yaml,sys; yaml.safe_load(open(sys.argv[1])); print('manifest yaml ok')" "$MANIFEST"
 
+      - name: Validate metainfo locally
+        run: |
+          set -eu
+          # Run the same validator the flatpak build uses, but on our file
+          # directly, so its message is readable instead of buried in compose.
+          mkdir -p /tmp/check/usr/share/metainfo
+          cp packaging/flatpak/InternetArchiveUploader.metainfo.xml \
+             /tmp/check/usr/share/metainfo/${APP_ID}.metainfo.xml
+          cp packaging/flatpak/LICENSE /tmp/check/usr/share/metainfo/ 2>/dev/null || true
+          appstreamcli validate --no-net \
+             /tmp/check/usr/share/metainfo/${APP_ID}.metainfo.xml || true
+          echo '--- compose dry run ---'
+          appstreamcli compose --no-net --origin=test --result-root=/tmp/compose \
+             --data-dir=/tmp/check/usr/share /tmp/check || true
+          echo '--- project_license as seen ---'
+          grep -n project_license packaging/flatpak/InternetArchiveUploader.metainfo.xml
+
       - name: Build Flatpak
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
