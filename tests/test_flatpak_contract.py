@@ -18,6 +18,15 @@ APP_ID = "io.github.jcleng.InternetArchiveUploader"
 
 
 @pytest.fixture(scope="module")
+def workflow_paths() -> set[str]:
+    data = yaml.safe_load(
+        (ROOT / ".github" / "workflows" / "build-flatpak.yml").read_text(encoding="utf-8")
+    )
+    on = data["on"] if "on" in data else data[True]
+    return set(on["push"]["paths"])
+
+
+@pytest.fixture(scope="module")
 def manifest():
     return yaml.safe_load(MANIFEST.read_text(encoding="utf-8"))
 
@@ -210,3 +219,27 @@ def test_flatpak_license_matches_the_upstream_one():
 
     assert "MIT License" in upstream
     assert vendored == upstream
+
+
+def test_flatpak_rebuilds_when_the_app_changes(workflow_paths):
+    """The bundle packages app code; triggering only on the manifest meant a
+    code change kept shipping a stale .flatpak."""
+    assert any(
+        p in {"main.py", "uploader/**", "requirements.txt"} for p in workflow_paths
+    ), f"paths filter does not cover app code: {workflow_paths}"
+
+
+def test_flatpak_uses_the_artifact_from_the_same_commit():
+    """Fetching 'the latest successful run' can package an older commit."""
+    text = (ROOT / ".github" / "workflows" / "build-flatpak.yml").read_text(encoding="utf-8")
+
+    assert "github.sha" in text, "artifact must be resolved for the current commit"
+    assert "status=success&per_page=1" not in text
+
+
+def test_flatpak_waits_for_the_desktop_build_of_the_same_commit():
+    """Both workflows start on the same push; the Flatpak job must wait rather
+    than fail because build-linux has not finished yet."""
+    text = (ROOT / ".github" / "workflows" / "build-flatpak.yml").read_text(encoding="utf-8")
+
+    assert "sleep" in text and ("attempt" in text or "for i in" in text)

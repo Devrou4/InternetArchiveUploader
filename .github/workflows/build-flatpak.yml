@@ -7,10 +7,21 @@ name: Build Flatpak
 # .flatpak bundle with flatpak-builder.
 
 on:
+  # The bundle packages the app itself, so any code change must rebuild it;
+  # triggering only on the manifest shipped a stale .flatpak after every
+  # feature change.
   push:
     branches: [master]
     paths:
-      - 'packaging/flatpak/**'
+      - 'main.py'
+      - 'uploader/**'
+      - 'LoginDialog/**'
+      - 'UI/**'
+      - 'AdditionalMetadataDialog/**'
+      - 'assets/**'
+      - 'requirements.txt'
+      - 'packaging/**'
+      - 'scripts/**'
       - '.github/workflows/build-flatpak.yml'
   workflow_dispatch:
     inputs:
@@ -51,10 +62,29 @@ jobs:
           # by the runner user; gh shells out to git and would otherwise abort
           # with "dubious ownership".
           git config --global --add safe.directory "$(pwd)"
-          RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/build-linux.yml/runs?branch=master&status=success&per_page=1" \
-            --jq '.workflow_runs[0].id')
-          test -n "$RUN_ID"
-          echo "using build-linux run $RUN_ID"
+          # Both workflows start on the same push, so wait for the desktop build
+          # of THIS commit instead of failing or, worse, packaging an older one.
+          RUN_ID=""
+          for attempt in $(seq 1 60); do
+            RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/build-linux.yml/runs?head_sha=${{ github.sha }}&per_page=10" \
+              --jq '[.workflow_runs[] | select(.conclusion=="success")][0].id // ""')
+            if [ -n "$RUN_ID" ]; then
+              echo "found build-linux run $RUN_ID for ${{ github.sha }} (attempt $attempt)"
+              break
+            fi
+            FAILED=$(gh api "repos/${{ github.repository }}/actions/workflows/build-linux.yml/runs?head_sha=${{ github.sha }}&per_page=10" \
+              --jq '[.workflow_runs[] | select(.conclusion=="failure" or .conclusion=="cancelled")] | length')
+            if [ "$FAILED" != "0" ]; then
+              echo "::error::The desktop build for ${{ github.sha }} failed; nothing to package."
+              exit 1
+            fi
+            echo "waiting for build-linux on ${{ github.sha }} (attempt $attempt/60)"
+            sleep 30
+          done
+          if [ -z "$RUN_ID" ]; then
+            echo "::error::Timed out waiting for build-linux on ${{ github.sha }}."
+            exit 1
+          fi
           ARTIFACT=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts" \
             --jq '[.artifacts[] | select(.name | endswith("ubuntu-24.04"))][0].name')
           test -n "$ARTIFACT"
