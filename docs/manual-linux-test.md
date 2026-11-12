@@ -10,6 +10,13 @@
 - [ ] 测试账号具备上传权限，使用可合法上传的测试文件
 - [ ] 备份现有 `ia.ini`
 
+## W. Windows 专项
+
+- [ ] W1 解压 zip 后双击 `InternetArchiveUploader.exe`，窗口正常
+- [ ] W2 配置路径默认落在 `%APPDATA%\internetarchive-uploader\ia.ini`
+- [ ] W3 登录框填代理后能登录，且重启应用后代理仍被记住
+- [ ] W4 上传走同一代理
+
 ## A. 启动与资源
 
 - [ ] A1 从 `/tmp` 等无关目录启动产物，图标与 logo 正常显示

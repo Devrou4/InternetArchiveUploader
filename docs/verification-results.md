@@ -10,12 +10,13 @@
 | --- | --- | --- |
 | 全量测试 | `QT_QPA_PLATFORM=offscreen python -m pytest -q` | 125 passed |
 | 源码冒烟 | `xvfb-run -a python scripts/smoke_gui.py`（CI） | exit 0 |
-| CI 构建 22.04/24.04 | GitHub Actions run 43193710126 (@2d79e97) | success |
+| CI 构建 Linux+Windows | GitHub Actions run 43198270648 (@bbb9add) | success（4 个构建 + 4 个产物校验 job 全绿） |
 | 产物内容检查 | `python -m uploader.packaging_contract dist/InternetArchiveUploader` | ok |
 | 产物启动 | `xvfb-run -a python scripts/smoke_dist.py dist/InternetArchiveUploader` | exit 0 |
 | 下载后校验 | `sha256sum -c SHA256SUMS` + 解压启动（CI package-smoke job） | success |
 | 代理连通性（本地实测） | `session.get('https://archive.org/services/check_identifier.php')` | HTTP 200，session.proxies 同时含 http/https |
-| 产物清单 | Actions Artifacts | `InternetArchiveUploader-master-linux-x86_64-ubuntu-22.04`、`-ubuntu-24.04` |
+| 产物清单 | Actions Artifacts | Linux `-ubuntu-22.04`/`-ubuntu-24.04`（各 76 MB）、Windows `-windows-2022`/`-windows-2025`（各 50 MB） |
+| Windows 产物 | zip 内 `InternetArchiveUploader.exe`，无 Python 环境启动 | success（verify-windows job） |
 
 说明：
 
@@ -26,6 +27,7 @@
 ## 尚未验证（需用户执行）
 
 - 代理在真实上传（含 IAS3 大文件）路径上的表现：本地只验证了普通 GET。
+- Windows 真实桌面交互与真实上传（CI 只验证了启动冒烟）。
 - 真实桌面交互：拖拽、编辑、并发调节、关闭流程（见 `docs/manual-linux-test.md`）。
 - 真实账号上传，包括新建条目、追加文件、同名冲突、权限失败。
 - 同一 item 内并发上传在 archive.org 侧的实际行为。

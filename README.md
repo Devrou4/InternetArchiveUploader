@@ -8,6 +8,7 @@
 ## 功能
 
 - **Linux 图形界面**：Ubuntu 22.04 / 24.04（x86_64），X11 与 Wayland 下的可用 Qt 后端。
+- **Windows 产物**：Windows Server 2022 / 2025 构建的 `.exe`（onedir，解压即用）。
 - **批量拖拽**：一次拖入多个文件，一文件一任务；默认全部上传到同一个 item，也可逐条修改。
 - **多文件共用 item**：不会为每个文件创建重复条目，也不会覆盖已有条目的 metadata。
 - **可配置并发**：1～8，默认 2。这是“同时上传的文件数”，不是单个文件分片。
@@ -21,12 +22,15 @@
 
 ### 使用 CI 产物（推荐）
 
-从 GitHub Actions 的 Artifact 或 Release 下载：
+从 GitHub Actions 的 Artifact 或 Release 下载对应平台：
 
 ```
-InternetArchiveUploader-<version>-linux-x86_64.tar.gz
-SHA256SUMS
+InternetArchiveUploader-<version>-linux-x86_64.tar.gz     # Linux
+InternetArchiveUploader-<version>-windows-x86_64.zip      # Windows
+SHA256SUMS-linux-<runner> / SHA256SUMS-windows-<runner>
 ```
+
+Windows 解压后运行 `InternetArchiveUploader\InternetArchiveUploader.exe`，无需安装 Python。
 
 ```bash
 sha256sum -c SHA256SUMS
@@ -87,6 +91,10 @@ python main.py
 - 用户名密码可以写在 URL 中（`http://user:pass@host:port`），界面和日志只显示 `***:***`。
 - 有上传任务进行中时不能更换代理。
 - 代理不可用不代表 archive.org 不可用；请先用 `curl -x <proxy> https://archive.org` 自查。
+- **代理会被记住**：登录成功或保存设置后写入用户配置目录的 `settings.json`
+  （Linux `${XDG_CONFIG_HOME:-~/.config}/internetarchive-uploader/`，Windows `%APPDATA%\internetarchive-uploader\`），
+  下次启动自动带出；清空输入框即清除记忆。优先级：`--proxy` > 记住的值 > 直连。
+- `settings.json` 与 `ia.ini` 分开存放：前者只有非敏感偏好，后者才含凭据。
 
 ## 使用流程
 
@@ -124,9 +132,16 @@ python -m pytest -q
 xvfb-run -a python scripts/smoke_gui.py
 ```
 
-CI：`.github/workflows/build-linux.yml`，在 Ubuntu 22.04 与 24.04 上
-安装 Qt 库 → 跑测试 → 源码冒烟 → PyInstaller 打包 → 产物内容校验 →
-产物冒烟 → 压缩 + SHA256SUM → Artifact（`v*` 标签时发布 Release）。
+CI：`.github/workflows/build-linux.yml`（名称仍沿用，实际构建两个平台）：
+
+| 平台 | 构建矩阵 | 产物 |
+| --- | --- | --- |
+| Linux | ubuntu-22.04 / 24.04 | `*.tar.gz` |
+| Windows | windows-2022 / 2025 | `*.zip`（内含 `InternetArchiveUploader.exe`） |
+
+每个平台都执行：跑测试 → 源码冒烟 → PyInstaller 打包 → 产物内容校验 →
+产物冒烟 → 压缩 + SHA256 → Artifact。另有 `verify-*` 任务在**没有 Python** 的
+对应系统上下载产物、校验和、解压并启动。`v*` 标签时才发布 Release。
 
 ## 手工验收
 
