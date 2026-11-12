@@ -193,6 +193,9 @@ runner, checks the checksum, extracts and launches with `--smoke-test`.
   fixed `--mtime`) and extract with `--no-same-owner`; CI files are uid 1001.
 - The metainfo needs **both** `project_license` and `metadata_license`, plus a
   file under `share/licenses/<id>/`, or `appstreamcli compose` fails.
+- The runtime branch in the manifest and the container tag
+  (`freedesktop-<branch>`) must be the same version; a mismatch installs a
+  different runtime than declared.
 - The workflow patches the manifest's placeholder URL + 64-zero sha256 in place;
   appending a second `sha256:` key is invalid YAML.
 
@@ -212,4 +215,5 @@ runner, checks the checksum, extracts and launches with `--smoke-test`.
   live service; if the server throttles, drop concurrency or serialize per item.
 - No queue persistence, no resumable transfers, no directory-recursive drops,
   no full existing-item metadata editor.
-- The Flatpak runtime is pinned to `24.08`, which upstream marks end-of-life.
+- The Flatpak runtime is pinned to `26.08`; the value and the CI container tag
+  must move together (asserted by `test_runtime_is_current_and_matches_the_container`).
