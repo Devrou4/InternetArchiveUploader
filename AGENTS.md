@@ -20,9 +20,9 @@ QT_QPA_PLATFORM=offscreen python -m pytest -q
 # Single test
 QT_QPA_PLATFORM=offscreen python -m pytest tests/test_queue.py -q
 
-# Run the app / headless smoke
+# Run the app / headless smoke (use the venv interpreter, not system python3)
 python main.py
-python main.py --smoke-test          # builds resources check, exits 0, no network
+python main.py --smoke-test          # resource check only, exits 0, no network
 python scripts/smoke_gui.py          # same, via subprocess
 
 # Packaging (CI does this; see "Do not build locally")
@@ -30,6 +30,10 @@ python -m PyInstaller packaging/linux.spec --noconfirm
 python -m uploader.packaging_contract dist/InternetArchiveUploader
 python scripts/smoke_dist.py dist/InternetArchiveUploader
 ```
+
+Run everything from an activated virtualenv. The system `python3` usually
+lacks `requests`/`PySide6`, and mixing the two produces confusing import and
+Qt crashes that look like test failures.
 
 On a minimal container Qt may need system libs (`libEGL.so.1`, `libxkbcommon`,
 `libdbus-1.so.3`). CI installs them via apt; there is no apt/sudo in some
