@@ -243,3 +243,16 @@ def test_flatpak_waits_for_the_desktop_build_of_the_same_commit():
     text = (ROOT / ".github" / "workflows" / "build-flatpak.yml").read_text(encoding="utf-8")
 
     assert "sleep" in text and ("attempt" in text or "for i in" in text)
+
+
+def test_runtime_is_current_and_matches_the_container(manifest):
+    """24.08 is end-of-life upstream. The runtime must be a supported branch and
+    the CI container tag must agree, or flatpak-builder installs a different
+    runtime than the manifest declares."""
+    version = str(manifest["runtime-version"])
+    workflow = (ROOT / ".github" / "workflows" / "build-flatpak.yml").read_text(encoding="utf-8")
+
+    assert version != "24.08", "24.08 is EOL; move to a supported branch"
+    assert f"freedesktop-{version}" in workflow
+    major = int(version.split(".")[0])
+    assert major >= 25

@@ -10,7 +10,7 @@
 # download a hard failure instead of a silent swap.
 id: io.github.jcleng.InternetArchiveUploader
 runtime: org.freedesktop.Platform
-runtime-version: '24.08'
+runtime-version: '25.08'
 sdk: org.freedesktop.Sdk
 command: internetarchive-uploader-wrapper
 
