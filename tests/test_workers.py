@@ -48,7 +48,7 @@ def run_worker(task, client, metadata=None):
     events = []
     worker = workers.UploadWorker(task, client, metadata)
     worker.succeeded.connect(lambda result: events.append(("ok", result)))
-    worker.failed.connect(lambda message: events.append(("fail", message)))
+    worker.failed.connect(lambda error: events.append(("fail", error)))
     worker.unknown.connect(lambda message: events.append(("unknown", message)))
     worker.log.connect(lambda message: events.append(("log", message)))
     worker.run()
@@ -67,6 +67,7 @@ def test_retryable_failure_is_reported_as_failure(tmp_path: Path):
     events = run_worker(make_task(tmp_path), FakeClient(error=RetryableFailure("503")))
 
     assert events[0][0] == "fail"
+    assert isinstance(events[0][1], RetryableFailure)
 
 
 def test_unknown_remote_state_emits_unknown(tmp_path: Path):
@@ -81,7 +82,7 @@ def test_conflict_failure_is_reported(tmp_path: Path):
     events = run_worker(make_task(tmp_path), FakeClient(error=ConflictFailure("exists")))
 
     assert events[0][0] == "fail"
-    assert "exists" in events[0][1]
+    assert "exists" in str(events[0][1])
 
 
 def test_worker_never_touches_thread_unsafe_state(tmp_path: Path):

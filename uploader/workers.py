@@ -11,7 +11,7 @@ from uploader.archive_client import RemoteStateUnknown
 
 class UploadWorker(qtc.QObject):
     succeeded = qtc.Signal(object)
-    failed = qtc.Signal(str)
+    failed = qtc.Signal(object)
     unknown = qtc.Signal(str)
     log = qtc.Signal(str)
 
@@ -35,7 +35,7 @@ class UploadWorker(qtc.QObject):
                     f"{self._task.remote_name}: upload result unknown, verify on archive.org ({exc})"
                 )
         except Exception as exc:
-            self.failed.emit(f"{type(exc).__name__}: {exc}")
+            self.failed.emit(exc)
         else:
             self.log.emit(f"{self._task.remote_name}: uploaded")
             self.succeeded.emit(result)
