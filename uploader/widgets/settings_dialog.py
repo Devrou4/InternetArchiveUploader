@@ -5,6 +5,7 @@ from PySide6 import QtWidgets as qtw
 
 from uploader.config_paths import resolve_config_path
 from uploader.proxy import ProxyError, normalize_proxy
+from uploader.settings import AppSettings
 
 
 class SettingsDialog(qtw.QDialog):
@@ -14,8 +15,16 @@ class SettingsDialog(qtw.QDialog):
     limit_selected = qtc.Signal(int)
     proxy_selected = qtc.Signal(str)
 
-    def __init__(self, config_path: Path, limit: int, proxy: str | None = "", parent=None):
+    def __init__(
+        self,
+        config_path: Path,
+        limit: int,
+        proxy: str | None = "",
+        parent=None,
+        settings: AppSettings | None = None,
+    ):
         super().__init__(parent)
+        self._settings = settings or AppSettings()
         self.setWindowTitle("Settings")
         self._config_path = Path(config_path)
 
@@ -74,6 +83,11 @@ class SettingsDialog(qtw.QDialog):
             return
 
         self.error_label.setText("")
+        try:
+            self._settings.save_proxy(proxy)
+        except OSError as exc:
+            self.error_label.setText(f"Cannot save the proxy setting: {exc}")
+            return
         resolved = resolve_config_path(path, None)
         self.config_selected.emit(str(resolved))
         self.limit_selected.emit(self.limit_field.value())

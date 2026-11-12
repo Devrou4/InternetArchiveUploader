@@ -29,14 +29,20 @@ def resource_path(relative: str) -> Path:
 
 
 def user_config_dir() -> Path:
-    base = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+    if sys.platform.startswith("win"):
+        base = Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming")
+    else:
+        base = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
     directory = base / APP_DIR_NAME
     directory.mkdir(parents=True, exist_ok=True)
     return directory
 
 
 def user_state_dir() -> Path:
-    base = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state")
+    if sys.platform.startswith("win"):
+        base = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
+    else:
+        base = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state")
     directory = base / APP_DIR_NAME
     directory.mkdir(parents=True, exist_ok=True)
     return directory

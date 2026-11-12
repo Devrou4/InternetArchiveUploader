@@ -15,12 +15,13 @@ from UI.main_window import Ui_MainWindow
 from LoginDialog.login_dialog import LoginDialog
 from AdditionalMetadataDialog.add_metadata_dialog import AdditionalMetadataDialog
 from uploader.config import ConfigError, ConfigManager
-from uploader.config_paths import resolve_config_path
+from uploader.config_paths import resolve_config_path, resolve_proxy
 from uploader.controller import UploadController
 from uploader.proxy import ProxyError, redact_proxy
 from uploader.models import ItemConfig, TaskState
 from uploader.queue import TaskQueue
 from uploader.resources import resource_path
+from uploader.settings import AppSettings
 from uploader.widgets.settings_dialog import SettingsDialog
 from uploader.widgets.task_table import TaskTable
 
@@ -391,8 +392,14 @@ def main(argv: list[str] | None = None) -> int:
     if sys.platform == 'win32':
         app.setStyle("Fusion")
 
+    settings = AppSettings()
+    remembered_proxy = settings.load_proxy()
+    effective_proxy = resolve_proxy(args.proxy, remembered_proxy)
     try:
-        manager = ConfigManager(resolve_config_path(args.config, None), proxy=args.proxy)
+        manager = ConfigManager(
+            resolve_config_path(args.config, None),
+            proxy=effective_proxy,
+        )
     except ConfigError as exc:
         print(f"invalid proxy: {exc}", file=sys.stderr)
         return 2

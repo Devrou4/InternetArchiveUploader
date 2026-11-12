@@ -5,6 +5,7 @@ from PySide6 import QtWidgets as qtw
 from LoginDialog.UI.login_dialog import Ui_Dialog
 from uploader.config import ConfigError, ConfigManager
 from uploader.proxy import ProxyError, normalize_proxy, redact_proxy
+from uploader.settings import AppSettings
 from uploader.resources import resource_path
 
 
@@ -33,10 +34,11 @@ class ConfigureWorker(qtc.QObject):
 class LoginDialog(qtw.QDialog, Ui_Dialog):
     logged = qtc.Signal()
 
-    def __init__(self, manager: ConfigManager):
+    def __init__(self, manager: ConfigManager, settings: AppSettings | None = None):
         super().__init__()
         self.setupUi(self)
         self._manager = manager
+        self._settings = settings or AppSettings()
         self._thread: qtc.QThread | None = None
         self._worker: ConfigureWorker | None = None
         self._threaded = True
@@ -44,7 +46,8 @@ class LoginDialog(qtw.QDialog, Ui_Dialog):
 
         # The proxy must be settable BEFORE authenticating: users behind a
         # firewall cannot reach archive.org to log in otherwise.
-        self.le_proxy = qtw.QLineEdit(manager.proxy or "")
+        remembered = manager.proxy or self._settings.load_proxy() or ""
+        self.le_proxy = qtw.QLineEdit(remembered)
         self.le_proxy.setPlaceholderText("http://192.168.195.18:20171 (leave empty for direct)")
         self.le_proxy.setToolTip(
             "Used for login, item lookup and uploads. Leave empty for a direct connection."
@@ -102,6 +105,13 @@ class LoginDialog(qtw.QDialog, Ui_Dialog):
         self._worker.failed.connect(self._on_failure)
         self._thread.start()
 
+    def _remember_proxy(self) -> None:
+        """Persist the choice so the next launch does not need retyping."""
+        try:
+            self._settings.save_proxy(self._manager.proxy)
+        except OSError:
+            pass
+
     def apply_proxy(self) -> bool:
         """Validate the proxy box and store it on the manager."""
         try:
@@ -122,6 +132,7 @@ class LoginDialog(qtw.QDialog, Ui_Dialog):
     @qtc.Slot()
     def _on_success(self):
         self.le_pass.clear()
+        self._remember_proxy()
         self._finish_thread()
         self.logged.emit()
         self.close()

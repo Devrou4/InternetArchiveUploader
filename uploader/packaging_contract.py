@@ -1,9 +1,15 @@
-"""Checks applied to a built Linux bundle before it is published."""
+"""Checks applied to a built bundle before it is published (Linux and Windows)."""
 
 import sys
 from pathlib import Path
 
 BINARY_NAME = "InternetArchiveUploader"
+
+
+def EXPECTED_BINARY(platform: str | None = None) -> str:
+    """PyInstaller appends .exe on Windows only."""
+    platform = sys.platform if platform is None else platform
+    return f"{BINARY_NAME}.exe" if platform.startswith("win") else BINARY_NAME
 
 REQUIRED_FILES = (
     "LICENSE",
@@ -25,7 +31,7 @@ def _find(root: Path, relative: str) -> Path | None:
     return None
 
 
-def check_dist(root: Path) -> list[str]:
+def check_dist(root: Path, platform: str | None = None) -> list[str]:
     """Return a list of problems; empty means the bundle is acceptable."""
     root = Path(root)
     problems: list[str] = []
@@ -33,8 +39,9 @@ def check_dist(root: Path) -> list[str]:
     if not root.is_dir():
         return [f"Bundle directory not found: {root}"]
 
-    if not (root / BINARY_NAME).is_file():
-        problems.append(f"Missing executable: {BINARY_NAME}")
+    binary = EXPECTED_BINARY(platform)
+    if not (root / binary).is_file():
+        problems.append(f"Missing executable: {binary}")
 
     for relative in REQUIRED_FILES:
         if not _find(root, relative):
