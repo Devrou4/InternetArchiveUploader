@@ -20,6 +20,8 @@
     <binary>internetarchive-uploader-wrapper</binary>
   </provides>
   <project_license>MIT</project_license>
+  <!-- appstreamcli requires the metadata itself to declare a license. -->
+  <metadata_license>MIT</metadata_license>
   <url type="homepage">https://github.com/jcleng/InternetArchiveUploader</url>
   <url type="bugtracker">https://github.com/jcleng/InternetArchiveUploader/issues</url>
   <developer_name>jcleng</developer_name>

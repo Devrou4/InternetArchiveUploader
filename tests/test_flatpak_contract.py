@@ -184,6 +184,9 @@ def test_metainfo_has_license_and_provides():
     root = ET.parse(FLATPAK / "InternetArchiveUploader.metainfo.xml").getroot()
 
     assert root.findtext("project_license") == "MIT"
+    # metadata_license is a separate field; appstreamcli reports
+    # "metadata-license-missing" without it.
+    assert root.findtext("metadata_license") == "MIT"
     provides = root.find("provides")
     assert provides is not None
     # Must match the binary actually installed into /app/bin.
