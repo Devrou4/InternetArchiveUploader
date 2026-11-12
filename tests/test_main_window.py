@@ -100,7 +100,7 @@ def test_main_window_shows_proxy_in_status(window):
 
 
 def test_window_proxy_change_rebuilds_manager(window, tmp_path: Path):
-    window.on_proxy_selected("")
+    window._on_proxy_selected("")
 
     assert window.manager.proxy is None
 
@@ -114,3 +114,63 @@ def test_parse_args_accepts_proxy():
 def test_main_rejects_malformed_proxy_before_network(capsys):
     assert app_main.main(["--smoke-test", "--proxy", "192.168.195.18:20171"]) == 2
     assert "scheme" in capsys.readouterr().err
+
+
+@pytest.fixture
+def visible_window(qtbot, tmp_path: Path):
+    """Real show() — the `window` fixture stubs it out to keep tests quiet."""
+    config = tmp_path / "ia.ini"
+    config.write_text("[s3]\naccess = a\nsecret = b\n", encoding="utf-8")
+    window = app_main.MainWindow(ConfigManager(config))
+    qtbot.addWidget(window)
+    window.show()
+    qtbot.waitExposed(window)
+    qtbot.wait(100)
+    return window
+
+
+def test_file_buttons_are_not_covered_by_task_table(visible_window, qtbot):
+    window = visible_window
+
+    tasks_rect = window.tasks.geometry()
+    tasks_rect.moveTopLeft(window.tasks.mapTo(window, window.tasks.rect().topLeft()))
+
+    for name in ("tb_file", "tb_folder", "tb_remove"):
+        button = getattr(window, name)
+        assert button.isVisible(), f"{name} is not visible"
+        rect = button.rect()
+        rect.moveTopLeft(button.mapTo(window, button.rect().topLeft()))
+        assert rect.width() > 0 and rect.height() > 0, f"{name} has no size"
+        assert not tasks_rect.intersects(rect), f"{name} is covered by the task table"
+
+
+def test_file_buttons_are_clickable(visible_window, qtbot, monkeypatch):
+    window = visible_window
+    opened = []
+    monkeypatch.setattr(
+        app_main.qtw.QFileDialog,
+        "getOpenFileNames",
+        lambda *a, **kw: (opened.append(True) or ([], "")),
+    )
+
+    qtbot.mouseClick(window.tb_file, app_main.qtc.Qt.MouseButton.LeftButton)
+
+    assert opened == [True]
+
+
+def test_import_buttons_are_labelled(visible_window):
+    """Icon-only buttons rendered blank on Linux; each must show readable text."""
+    for name, expected in (
+        ("tb_file", "Select file"),
+        ("tb_folder", "Folder"),
+        ("tb_remove", "Remove"),
+    ):
+        button = getattr(visible_window, name)
+        assert button.text() == expected
+        assert button.toolTip()
+
+
+def test_toolbar_icons_do_not_leave_blank_buttons(visible_window):
+    for name in ("tb_file", "tb_folder", "tb_remove"):
+        button = getattr(visible_window, name)
+        assert not button.icon().isNull() or button.text()

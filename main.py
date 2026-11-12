@@ -55,27 +55,46 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
 
         self.queue = TaskQueue(limit=2)
         self.controller = UploadController(manager, self.queue)
+
+        # The import row (Select file / folder / remove) already occupies grid
+        # rows 1-3, so the task table lives in its own container placed below
+        # the whole form. Overlapping the two is what hid the buttons before.
         self.tasks = TaskTable(config_path=manager.path)
-        self.gridLayout_2.addWidget(self.tasks, 1, 0, 8, 5)
+        self.tasks.setMinimumHeight(160)
         self.lw_paths.hide()
 
         self.limit_box = qtw.QSpinBox()
         self.limit_box.setRange(1, 8)
         self.limit_box.setValue(2)
         self.limit_box.setToolTip("Simultaneous file uploads")
-        self.gridLayout_2.addWidget(self.limit_box, 17, 1, 1, 2)
 
         self.pb_stop = qtw.QPushButton("Stop dispatching")
         self.pb_retry = qtw.QPushButton("Retry failed")
         self.tb_settings = qtw.QToolButton()
         self.tb_settings.setText("Settings")
-        self.gridLayout_2.addWidget(self.pb_stop, 17, 3, 1, 1)
-        self.gridLayout_2.addWidget(self.pb_retry, 17, 4, 1, 1)
         self.gridLayout_2.addWidget(self.tb_settings, 0, 4, 1, 1)
+
+        controls = qtw.QHBoxLayout()
+        controls.addWidget(qtw.QLabel("Concurrent uploads:"))
+        controls.addWidget(self.limit_box)
+        controls.addStretch(1)
+        controls.addWidget(self.pb_stop)
+        controls.addWidget(self.pb_retry)
+        self.controls_row = qtw.QWidget()
+        self.controls_row.setLayout(controls)
+        self.gridLayout_2.addWidget(self.controls_row, 17, 0, 1, 5)
 
         self.config_label = qtw.QLabel(self._connection_text())
         self.config_label.setWordWrap(True)
         self.gridLayout_2.addWidget(self.config_label, 18, 0, 1, 5)
+
+        self.central_layout = qtw.QVBoxLayout()
+        self.centralwidget.layout().removeWidget(self.widget)
+        self.central_layout.addWidget(self.widget)
+        self.central_layout.addWidget(self.tasks, 1)
+        self.centralwidget.layout().addLayout(self.central_layout, 0, 0, 1, 1)
+
+        self._relabel_import_buttons()
 
         self.tb_file.clicked.connect(self.pick_file)
         self.tb_folder.clicked.connect(self.pick_folder_notice)
@@ -118,6 +137,19 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
         self.dialog = LoginDialog(self.manager)
         self.dialog.show()
         self.dialog.logged.connect(self._after_login)
+
+    def _relabel_import_buttons(self):
+        """Icon-only tool buttons render blank when the theme resolves no icon."""
+        labels = (
+            (self.tb_file, "Select file", "Add files to the upload queue"),
+            (self.tb_folder, "Folder", "Folder uploads are not supported yet"),
+            (self.tb_remove, "Remove", "Remove the selected rows"),
+        )
+        for button, text, tip in labels:
+            button.setText(text)
+            button.setToolTip(tip)
+            button.setToolButtonStyle(qtc.Qt.ToolButtonStyle.ToolButtonTextOnly)
+            button.setMinimumWidth(90)
 
     # ---- import --------------------------------------------------------
     def pick_file(self):
@@ -236,7 +268,7 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
         )
         dialog.limit_selected.connect(self.limit_box.setValue)
         dialog.config_selected.connect(self.on_config_selected)
-        dialog.proxy_selected.connect(self.on_proxy_selected)
+        dialog.proxy_selected.connect(self._on_proxy_selected)
         dialog.exec()
 
     def _connection_text(self) -> str:
@@ -246,7 +278,7 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
         )
 
     @qtc.Slot(str)
-    def on_proxy_selected(self, proxy: str):
+    def _on_proxy_selected(self, proxy: str):
         if self.controller.has_active_tasks():
             qtw.QMessageBox.warning(self, "Uploads running", "Stop dispatching and wait before changing the proxy.")
             return
