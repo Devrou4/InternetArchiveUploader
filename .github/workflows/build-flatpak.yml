@@ -67,12 +67,20 @@ jobs:
           TARBALL="InternetArchiveUploader-linux-x86_64.tar.gz"
           # The workflow stores <name>.tar.gz already; normalise the file name.
           SRC=$(ls bundle/*.tar.gz | head -1)
-          cp "$SRC" "$TARBALL"
+          # Re-pack without owner/group and with sorted entries: flatpak-builder
+          # cannot chown to the CI uid, and a deterministic tarball keeps the
+          # recorded sha256 meaningful.
+          mkdir -p unpacked
+          tar -xzf "$SRC" -C unpacked --no-same-owner
+          tar --sort=name --owner=0 --group=0 --numeric-owner \
+              --mtime='UTC 2020-01-01' -czf "$TARBALL" -C unpacked .
           tar -tzf "$TARBALL" | head -3
           # The manifest unpacks with --strip-components=1, so verify the
           # archive has exactly one top-level directory.
-          TOPS=$(tar -tzf "$TARBALL" | cut -d/ -f1 | sort -u | wc -l)
-          test "$TOPS" -eq 1
+          # The repack below puts everything under "./", so assert the entry
+          # point exists at the archive root instead of counting top dirs.
+          tar -tzf "$TARBALL" | grep -qx './InternetArchiveUploader/InternetArchiveUploader"
+          tar -tzf "$TARBALL" | grep -q './InternetArchiveUploader/_internal/' 
           sha256sum "$TARBALL" | tee bundle.sha256
 
       # flatpak-builder needs a stable, fetchable URL. Serving the file from a

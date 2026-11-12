@@ -40,7 +40,11 @@ modules:
       # The bundle is a self-contained onedir tree; keep it intact so the
       # PyInstaller loader can find its _internal/ payload.
       - mkdir -p ${FLATPAK_DEST}/InternetArchiveUploader
-      - tar -xzf uploader-bundle.tar.gz -C ${FLATPAK_DEST}/InternetArchiveUploader --strip-components=1
+      # --no-same-owner: the CI tarball carries uid 1001, which the Flatpak
+      # build sandbox cannot chown; ownership is irrelevant inside the bundle.
+      # The bundle is repacked with its files at the archive root (./), so no
+      # --strip-components is needed.
+      - tar -xzf uploader-bundle.tar.gz -C ${FLATPAK_DEST}/InternetArchiveUploader --no-same-owner
       - test -x ${FLATPAK_DEST}/InternetArchiveUploader/InternetArchiveUploader
       # Flatpak apps must not ship their own bundled Qt platform plugins that
       # shadow the runtime's; the bundle links its own copies, so verify the

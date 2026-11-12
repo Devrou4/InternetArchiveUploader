@@ -134,9 +134,10 @@ def test_bundle_source_is_a_file_not_an_archive(manifest):
     assert bundle["type"] == "file"
 
 
-def test_build_commands_strip_the_single_top_level_dir(manifest):
+def test_build_commands_extract_without_chown(manifest):
+    """CI tarballs carry uid 1001; the sandbox cannot chown, so drop ownership."""
     uploader = [m for m in manifest["modules"] if m.get("name") == "internetarchive-uploader"][0]
     commands = " ".join(uploader["build-commands"])
 
-    assert "--strip-components=1" in commands
+    assert "--no-same-owner" in commands
     assert "InternetArchiveUploader" in commands
