@@ -52,7 +52,9 @@ modules:
       - install -Dm644 io.github.jcleng.InternetArchiveUploader.png ${FLATPAK_DEST}/share/icons/hicolor/512x512/apps/io.github.jcleng.InternetArchiveUploader.png
     sources:
       # Rewritten by CI with the freshly built bundle URL and sha256.
-      - type: archive
+      # type: file (not archive) because flatpak-builder auto-extracts archives;
+      # the build commands need the .tar.gz itself so --strip-components works.
+      - type: file
         url: https://github.com/jcleng/InternetArchiveUploader/releases/download/PENDING/InternetArchiveUploader-linux-x86_64.tar.gz
         sha256: 0000000000000000000000000000000000000000000000000000000000000000
         dest-filename: uploader-bundle.tar.gz

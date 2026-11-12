@@ -121,3 +121,22 @@ def test_workflow_does_not_need_secrets():
     workflow = (ROOT / ".github" / "workflows" / "build-flatpak.yml").read_text(encoding="utf-8")
 
     assert "secrets." not in workflow
+
+
+def test_bundle_source_is_a_file_not_an_archive(manifest):
+    """flatpak-builder auto-extracts `archive` sources, which breaks our tar step."""
+    uploader = [m for m in manifest["modules"] if m.get("name") == "internetarchive-uploader"][0]
+    bundle = [
+        s for s in uploader["sources"]
+        if s.get("dest-filename") == "uploader-bundle.tar.gz"
+    ][0]
+
+    assert bundle["type"] == "file"
+
+
+def test_build_commands_strip_the_single_top_level_dir(manifest):
+    uploader = [m for m in manifest["modules"] if m.get("name") == "internetarchive-uploader"][0]
+    commands = " ".join(uploader["build-commands"])
+
+    assert "--strip-components=1" in commands
+    assert "InternetArchiveUploader" in commands
