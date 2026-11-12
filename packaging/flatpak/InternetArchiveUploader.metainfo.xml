@@ -16,6 +16,10 @@
     </p>
   </description>
   <launchable type="desktop-id">io.github.jcleng.InternetArchiveUploader.desktop</launchable>
+  <provides>
+    <binary>internetarchive-uploader-wrapper</binary>
+  </provides>
+  <project_license>MIT</project_license>
   <url type="homepage">https://github.com/jcleng/InternetArchiveUploader</url>
   <url type="bugtracker">https://github.com/jcleng/InternetArchiveUploader/issues</url>
   <developer_name>jcleng</developer_name>

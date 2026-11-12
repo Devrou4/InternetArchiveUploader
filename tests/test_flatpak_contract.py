@@ -4,7 +4,7 @@ The manifest is only exercised on CI, so these tests pin the pieces that would
 otherwise fail there for the first time.
 """
 
-import shutil
+import os
 from pathlib import Path
 
 import pytest
@@ -145,8 +145,8 @@ def test_build_commands_extract_without_chown(manifest):
 
 
 @pytest.mark.skipif(
-    not shutil.which("bash"),
-    reason="Workflow run blocks are POSIX shell; no bash on this platform",
+    os.name != "posix",
+    reason="Workflow run blocks are POSIX shell; Windows' bash differs",
 )
 def test_workflow_run_blocks_have_balanced_quotes():
     """A stray quote breaks the whole step with 'unexpected EOF'."""
@@ -175,3 +175,16 @@ def test_bundle_extracts_into_dest_without_doubling_the_path(manifest):
 
     assert "tar -xzf uploader-bundle.tar.gz -C ${FLATPAK_DEST} " in commands
     assert "-C ${FLATPAK_DEST}/InternetArchiveUploader" not in commands
+
+
+def test_metainfo_has_license_and_provides():
+    """appstreamcli compose rejects metainfo without a project license."""
+    import xml.etree.ElementTree as ET
+
+    root = ET.parse(FLATPAK / "InternetArchiveUploader.metainfo.xml").getroot()
+
+    assert root.findtext("project_license") == "MIT"
+    provides = root.find("provides")
+    assert provides is not None
+    # Must match the binary actually installed into /app/bin.
+    assert provides.findtext("binary") == "internetarchive-uploader-wrapper"
