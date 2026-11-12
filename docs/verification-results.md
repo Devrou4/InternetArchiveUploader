@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | 全量测试 | `QT_QPA_PLATFORM=offscreen python -m pytest -q` | 125 passed |
 | 源码冒烟 | `xvfb-run -a python scripts/smoke_gui.py`（CI） | exit 0 |
-| CI 构建 22.04/24.04 | GitHub Actions run 43193095522 | success |
+| CI 构建 22.04/24.04 | GitHub Actions run 43193710126 (@2d79e97) | success |
 | 产物内容检查 | `python -m uploader.packaging_contract dist/InternetArchiveUploader` | ok |
 | 产物启动 | `xvfb-run -a python scripts/smoke_dist.py dist/InternetArchiveUploader` | exit 0 |
 | 下载后校验 | `sha256sum -c SHA256SUMS` + 解压启动（CI package-smoke job） | success |
