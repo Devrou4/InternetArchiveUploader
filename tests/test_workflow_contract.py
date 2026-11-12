@@ -53,3 +53,20 @@ def test_artifact_is_checksummed_before_release(workflow):
 
     assert "sha256sum" in run_blocks
     assert "packaging_contract" in run_blocks
+
+def test_build_inputs_are_tracked_by_git():
+    """A spec ignored by .gitignore silently breaks CI packaging."""
+    import subprocess
+
+    root = Path(__file__).resolve().parent.parent
+    tracked = subprocess.run(
+        ["git", "ls-files", "packaging", ".github", "scripts"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+
+    assert "packaging/linux.spec" in tracked
+    assert ".github/workflows/build-linux.yml" in tracked
+    assert "scripts/smoke_dist.py" in tracked
