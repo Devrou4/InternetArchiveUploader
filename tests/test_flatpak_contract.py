@@ -165,3 +165,13 @@ def test_workflow_run_blocks_have_balanced_quotes():
         handle.close()
         result = subprocess.run(["bash", "-n", handle.name], capture_output=True, text=True)
         assert result.returncode == 0, f"{result.stderr}\n---\n{script}"
+
+
+def test_bundle_extracts_into_dest_without_doubling_the_path(manifest):
+    """The archive already has a top-level dir; extracting into DEST/<same>
+    produced /app/InternetArchiveUploader/InternetArchiveUploader and failed CI."""
+    uploader = [m for m in manifest["modules"] if m.get("name") == "internetarchive-uploader"][0]
+    commands = "\n".join(uploader["build-commands"])
+
+    assert "tar -xzf uploader-bundle.tar.gz -C ${FLATPAK_DEST} " in commands
+    assert "-C ${FLATPAK_DEST}/InternetArchiveUploader" not in commands
