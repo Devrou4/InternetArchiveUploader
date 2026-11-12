@@ -98,3 +98,75 @@ def test_active_tasks_block_reported():
     controller = UploadController(FakeManager())
 
     assert controller.has_active_tasks() is False
+
+def test_finish_does_not_block_on_its_own_thread(tmp_path: Path, qtbot):
+    """A worker that emits from its own thread must not make the GUI wait on it."""
+    import time as time_mod
+
+    from uploader.controller import UploadController as Controller
+
+    controller = Controller(FakeManager())
+    controller._client = FakeClient()
+    item = ItemConfig("item-1", {"title": "T"})
+    task = make_task(tmp_path)
+    controller.register_tasks(item, [task])
+    controller._queue.start()
+
+    released = []
+    original_upload = controller._client.upload_file
+
+    def slow_upload(task_arg, metadata):
+        released.append(task_arg.id)
+        return original_upload(task_arg, metadata)
+
+    controller._client.upload_file = slow_upload
+
+    started = time_mod.monotonic()
+    controller._pump()
+    deadline = started + 5
+    while controller.has_active_tasks() and time_mod.monotonic() < deadline:
+        qtbot.wait(50)
+    elapsed = time_mod.monotonic() - started
+
+    assert released
+    assert elapsed < 5
+    assert not controller.has_active_tasks()
+
+
+def test_register_tasks_enqueues_tasks(tmp_path: Path):
+    controller = UploadController(FakeManager())
+    controller._client = FakeClient(ItemSnapshot(False, {}, {}))
+    item = ItemConfig("item-1", {"title": "T"})
+    task = make_task(tmp_path)
+
+    assert controller.register_tasks(item, [task]) is True
+
+    assert controller.queue.tasks() == [task]
+
+
+def test_register_tasks_does_not_duplicate_on_repeat(tmp_path: Path):
+    controller = UploadController(FakeManager())
+    controller._client = FakeClient(ItemSnapshot(False, {}, {}))
+    item = ItemConfig("item-1", {"title": "T"})
+    task = make_task(tmp_path)
+
+    controller.register_tasks(item, [task])
+    controller.register_tasks(item, [task])
+
+    assert controller.queue.tasks() == [task]
+
+
+def test_queue_keeps_dispatching_after_initializer(qtbot, tmp_path: Path):
+    """After the initializer finishes, remaining files must be dispatched."""
+    controller = UploadController(FakeManager())
+    controller._client = FakeClient(ItemSnapshot(False, {}, {}))
+    item = ItemConfig("item-1", {"title": "T"})
+    tasks = [make_task(tmp_path, "a"), make_task(tmp_path, "b")]
+    controller.register_tasks(item, tasks)
+    controller.set_limit(4)
+    controller._queue.start()
+    controller.start()
+
+    qtbot.waitUntil(lambda: all(t.state is TaskState.SUCCEEDED for t in tasks), timeout=8000)
+
+    assert [t.id for t in controller.queue.tasks()] == ["a", "b"]

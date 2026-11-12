@@ -74,6 +74,10 @@ class UploadController(qtc.QObject):
         if snapshot is None:
             return False
         tasks = [task for task in tasks if task.item_key == item.identifier]
+        known = {existing.id for existing in self._queue.tasks()}
+        for task in tasks:
+            if task.id not in known:
+                self._queue.add(task)
         self._queue.register_item(item, tasks, snapshot)
         self.state_changed.emit()
         return True
@@ -91,9 +95,10 @@ class UploadController(qtc.QObject):
         self.status.emit("Stopped dispatching new files; running uploads continue.")
 
     def wait_for_active(self, timeout_ms: int = 30000) -> bool:
+        deadline = qtc.QDateTime.currentMSecsSinceEpoch() + timeout_ms
         for thread in list(self._threads.values()):
             thread.quit()
-            if not thread.wait(timeout_ms):
+            if not thread.wait(max(1, deadline - qtc.QDateTime.currentMSecsSinceEpoch())):
                 return False
         return True
 
@@ -127,12 +132,17 @@ class UploadController(qtc.QObject):
         self.state_changed.emit()
 
     def _finish(self, task_id: str) -> None:
+        """Retire a finished worker without blocking the GUI thread.
+
+        This runs from a slot invoked by the worker's own signal, so calling
+        wait() here would wait on ourselves. quit() lets the loop end and the
+        thread deletes itself once it is really finished.
+        """
         thread = self._threads.pop(task_id, None)
         self._workers.pop(task_id, None)
         if thread is not None:
             thread.quit()
-            thread.wait()
-            thread.deleteLater()
+            thread.finished.connect(thread.deleteLater)
 
     def _on_success(self, task_id: str, result) -> None:
         self._queue.complete(task_id, result)
