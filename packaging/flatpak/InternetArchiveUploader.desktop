@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Internet Archive Uploader
+GenericName=Upload files to archive.org
+Comment=Upload files to the Internet Archive with a graphical queue
+Exec=internetarchive-uploader-wrapper
+Icon=io.github.jcleng.InternetArchiveUploader
+Terminal=false
+Type=Application
+Categories=Network;FileTransfer;
+Keywords=archive.org;internet archive;upload;
+StartupNotify=true

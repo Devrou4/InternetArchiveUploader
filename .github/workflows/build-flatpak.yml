@@ -1,0 +1,167 @@
+name: Build Flatpak
+
+# Flatpak bundling of the Linux artifact produced by build-linux.yml.
+#
+# The previous workflow's artifact is the input: this job downloads it, packs it
+# as a tar.gz, rewrites the manifest's bundle source URL + sha256, then builds a
+# .flatpak bundle with flatpak-builder.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'packaging/flatpak/**'
+      - '.github/workflows/build-flatpak.yml'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Publish the bundle to this Release tag (leave empty to only keep the artifact)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  APP_ID: io.github.jcleng.InternetArchiveUploader
+  MANIFEST: packaging/flatpak/io.github.jcleng.InternetArchiveUploader.yaml
+  # Must match runtime-version in the manifest.
+  FLATPAK_RUNTIME: '24.08'
+
+jobs:
+  flatpak:
+    name: Flatpak bundle
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-24.08
+      options: --privileged
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Reuse the newest successful Linux bundle from build-linux.yml rather
+      # than rebuilding, so the Flatpak ships exactly the artifact we verified.
+      - name: Download latest Linux artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/build-linux.yml/runs?branch=master&status=success&per_page=1" \
+            --jq '.workflow_runs[0].id')
+          test -n "$RUN_ID"
+          echo "using build-linux run $RUN_ID"
+          ARTIFACT=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts" \
+            --jq '[.artifacts[] | select(.name | endswith("ubuntu-24.04"))][0].name')
+          test -n "$ARTIFACT"
+          gh run download "$RUN_ID" -n "$ARTIFACT" -D bundle
+
+      - name: Pack the bundle as a tar.gz
+        run: |
+          set -eu
+          ls -l bundle
+          TARBALL="InternetArchiveUploader-linux-x86_64.tar.gz"
+          # The workflow stores <name>.tar.gz already; normalise the file name.
+          SRC=$(ls bundle/*.tar.gz | head -1)
+          cp "$SRC" "$TARBALL"
+          tar -tzf "$TARBALL" | head -3
+          # The manifest unpacks with --strip-components=1, so verify the
+          # archive has exactly one top-level directory.
+          TOPS=$(tar -tzf "$TARBALL" | cut -d/ -f1 | sort -u | wc -l)
+          test "$TOPS" -eq 1
+          sha256sum "$TARBALL" | tee bundle.sha256
+
+      # flatpak-builder needs a stable, fetchable URL. Serving the file from a
+      # local HTTP server keeps the manifest honest (still an archive source
+      # with a real sha256) without publishing a throwaway release.
+      - name: Serve the bundle locally
+        run: |
+          set -eu
+          mkdir -p /srv/bundle
+          cp InternetArchiveUploader-linux-x86_64.tar.gz /srv/bundle/
+          cd /srv/bundle && nohup python3 -m http.server 8123 >/tmp/http.log 2>&1 &
+          sleep 2
+          curl -fsS -o /dev/null http://127.0.0.1:8123/InternetArchiveUploader-linux-x86_64.tar.gz
+
+      - name: Point the manifest at the local bundle
+        run: |
+          set -eu
+          SHA=$(cut -d' ' -f1 bundle.sha256)
+          echo "bundle sha256: $SHA"
+          python3 - "$SHA" <<'PY'
+          import os, re, sys
+          sha = sys.argv[1]
+          path = os.environ['MANIFEST']
+          text = open(path, encoding='utf-8').read()
+          url = 'http://127.0.0.1:8123/InternetArchiveUploader-linux-x86_64.tar.gz'
+          text, n_url = re.subn(
+              r'url: \S*InternetArchiveUploader-linux-x86_64\.tar\.gz', f'url: {url}', text
+          )
+          text, n_sha = re.subn(r'(dest-filename: uploader-bundle\.tar\.gz\n)', f'dest-filename: uploader-bundle.tar.gz\n        sha256: {sha}\n', text)
+          assert n_url == 1, f'url rewrite matched {n_url}'
+          assert n_sha == 1, f'sha256 rewrite matched {n_sha}'
+          open(path, 'w', encoding='utf-8').write(text)
+          print('manifest patched')
+          PY
+          grep -n -A3 'uploader-bundle.tar.gz' "$MANIFEST" | head -8
+
+      - name: Build Flatpak
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: ${{ env.APP_ID }}.flatpak
+          manifest-path: ${{ env.MANIFEST }}
+          cache-key: flatpak-builder-ia-uploader-${{ github.sha }}
+          branch: stable
+          upload-artifact: false
+
+      - name: Verify the bundle installs and starts
+        run: |
+          set -eu
+          ls -lh "${APP_ID}.flatpak"
+          flatpak install --user --noninteractive --bundle "${APP_ID}.flatpak"
+          flatpak list --app --columns=application,branch
+          # The bundled entry point must report a successful headless start.
+          flatpak run --command=sh "${APP_ID}" -c '
+            set -eu
+            test -x /app/InternetArchiveUploader/InternetArchiveUploader
+            QT_QPA_PLATFORM=offscreen /app/InternetArchiveUploader/InternetArchiveUploader --smoke-test
+          '
+          flatpak uninstall --user -y "${APP_ID}"
+
+      - name: Compute checksum
+        run: |
+          set -eu
+          sha256sum "${APP_ID}.flatpak" | tee "SHA256SUMS-flatpak"
+          echo "SHA256_FULL=$(cat SHA256SUMS-flatpak)" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_ID }}-flatpak
+          path: |
+            ${{ env.APP_ID }}.flatpak
+            SHA256SUMS-flatpak
+          if-no-files-found: error
+
+  release:
+    name: Publish Flatpak
+    needs: flatpak
+    if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.APP_ID }}-flatpak
+
+      - name: Show files
+        run: ls -l
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          files: |
+            *.flatpak
+            SHA256SUMS-flatpak
+          fail_on_unmatched_files: true

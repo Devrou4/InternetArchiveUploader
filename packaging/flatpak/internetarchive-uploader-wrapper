@@ -1,0 +1,26 @@
+#!/bin/sh
+# Flatpak entry point.
+#
+# The PyInstaller bundle is installed read-only under /app/InternetArchiveUploader.
+# Everything writable (Qt cache, ia.ini, settings.json) already resolves through
+# XDG variables, which the runtime points at ~/.var/app/<id>/, so nothing here
+# rewrites paths — it only makes sure the bundle is on PATH and execs it.
+set -eu
+
+APP_DIR=/app/InternetArchiveUploader
+
+if [ ! -x "${APP_DIR}/InternetArchiveUploader" ]; then
+    echo "internetarchive-uploader-wrapper: bundle missing at ${APP_DIR}" >&2
+    exit 1
+fi
+
+# Qt must not try to reach a session bus the sandbox may not provide.
+: "${QT_QPA_PLATFORM:=xcb;wayland}"
+export QT_QPA_PLATFORM
+
+# Keep Qt's own caches inside the writable per-app directory.
+: "${XDG_CACHE_HOME:=${HOME}/.cache}"
+export XDG_CACHE_HOME
+
+cd "${HOME}"
+exec "${APP_DIR}/InternetArchiveUploader" "$@"

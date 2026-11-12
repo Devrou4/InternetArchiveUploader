@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.jcleng.InternetArchiveUploader</id>
+  <name>Internet Archive Uploader</name>
+  <summary>Upload files to the Internet Archive with a graphical queue</summary>
+  <description>
+    <p>
+      A graphical uploader for archive.org built on Qt. Drop multiple files,
+      review the inferred media type, choose an item identifier and let the
+      queue upload them with a configurable number of parallel transfers.
+    </p>
+    <p>
+      Authentication uses your own Internet Archive credentials stored in a
+      local ia.ini; an HTTP proxy can be configured for networks that cannot
+      reach archive.org directly.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.jcleng.InternetArchiveUploader.desktop</launchable>
+  <url type="homepage">https://github.com/jcleng/InternetArchiveUploader</url>
+  <url type="bugtracker">https://github.com/jcleng/InternetArchiveUploader/issues</url>
+  <developer_name>jcleng</developer_name>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-11-12"/>
+  </releases>
+</component>
