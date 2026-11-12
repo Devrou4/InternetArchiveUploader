@@ -47,6 +47,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
+          # The job runs as root inside a container while the checkout is owned
+          # by the runner user; gh shells out to git and would otherwise abort
+          # with "dubious ownership".
+          git config --global --add safe.directory "$(pwd)"
           RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/build-linux.yml/runs?branch=master&status=success&per_page=1" \
             --jq '.workflow_runs[0].id')
           test -n "$RUN_ID"

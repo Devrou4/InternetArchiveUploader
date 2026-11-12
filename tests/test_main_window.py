@@ -174,3 +174,16 @@ def test_toolbar_icons_do_not_leave_blank_buttons(visible_window):
     for name in ("tb_file", "tb_folder", "tb_remove"):
         button = getattr(visible_window, name)
         assert not button.icon().isNull() or button.text()
+
+
+def test_close_uses_controller_shutdown(visible_window, monkeypatch):
+    """The real shutdown path must join workers, not just stop dispatching."""
+    calls = []
+    visible_window.controller.has_active_tasks = lambda: True
+    monkeypatch.setattr(app_main.qtw.QMessageBox, "question",
+                        lambda *a, **kw: app_main.qtw.QMessageBox.StandardButton.Yes)
+    monkeypatch.setattr(visible_window.controller, "shutdown",
+                        lambda: calls.append("shutdown") or True)
+
+    assert visible_window.close() is True
+    assert calls == ["shutdown"]

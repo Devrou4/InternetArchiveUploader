@@ -355,8 +355,7 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
             if choice != qtw.QMessageBox.StandardButton.Yes:
                 event.ignore()
                 return
-            self.controller.stop_dispatch()
-            if not self.controller.wait_for_active():
+            if not self.controller.shutdown():
                 qtw.QMessageBox.warning(self, "Still running", "Uploads are still running; close again later.")
                 event.ignore()
                 return

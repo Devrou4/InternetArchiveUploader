@@ -94,6 +94,21 @@ class UploadController(qtc.QObject):
         self._queue.stop_dispatch()
         self.status.emit("Stopped dispatching new files; running uploads continue.")
 
+    def shutdown(self, timeout_ms: int = 30000) -> bool:
+        """Stop dispatching and join every worker.
+
+        Must be called before the controller (and its QThreads) is destroyed;
+        letting Qt own a half-finished thread is what produces crashes with no
+        Python frames.
+        """
+        self.stop_dispatch()
+        self._timer.stop()
+        if not self.wait_for_active(timeout_ms):
+            return False
+        # Deliver queued signals (success/failure) before returning.
+        qtc.QCoreApplication.processEvents()
+        return True
+
     def wait_for_active(self, timeout_ms: int = 30000) -> bool:
         deadline = qtc.QDateTime.currentMSecsSinceEpoch() + timeout_ms
         for thread in list(self._threads.values()):

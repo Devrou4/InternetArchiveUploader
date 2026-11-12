@@ -56,11 +56,10 @@ def test_close_waits_instead_of_killing_threads(qtbot, tmp_path: Path, monkeypat
         "question",
         lambda *a, **kw: qtw.QMessageBox.StandardButton.Yes,
     )
-    monkeypatch.setattr(window.controller, "stop_dispatch", lambda: waits.append("stop"))
-    monkeypatch.setattr(window.controller, "wait_for_active", lambda: waits.append("wait") or True)
+    monkeypatch.setattr(window.controller, "shutdown", lambda: waits.append("shutdown") or True)
 
     assert window.close() is True
-    assert waits == ["stop", "wait"]
+    assert waits == ["shutdown"]
 
 
 def test_close_with_unfinished_uploads_is_refused(qtbot, tmp_path: Path, monkeypatch):
@@ -75,7 +74,7 @@ def test_close_with_unfinished_uploads_is_refused(qtbot, tmp_path: Path, monkeyp
         "question",
         lambda *a, **kw: qtw.QMessageBox.StandardButton.Yes,
     )
-    monkeypatch.setattr(window.controller, "wait_for_active", lambda: False)
+    monkeypatch.setattr(window.controller, "shutdown", lambda: False)
     monkeypatch.setattr(qtw.QMessageBox, "warning", lambda *a, **kw: None)
 
     assert window.close() is False

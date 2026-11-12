@@ -1,3 +1,4 @@
+import time
 from pathlib import Path
 
 import pytest
@@ -167,6 +168,13 @@ def test_queue_keeps_dispatching_after_initializer(qtbot, tmp_path: Path):
     controller._queue.start()
     controller.start()
 
-    qtbot.waitUntil(lambda: all(t.state is TaskState.SUCCEEDED for t in tasks), timeout=8000)
+    # Drain the queue deterministically: no polling thread, no window where a
+    # half-finished QThread is destroyed by the garbage collector.
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        qtbot.wait(20)
+        if all(t.state is TaskState.SUCCEEDED for t in tasks):
+            break
+    assert controller.shutdown() is True
 
     assert [t.id for t in controller.queue.tasks()] == ["a", "b"]
