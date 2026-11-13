@@ -1,0 +1,74 @@
+# Flatpak manifest for Internet Archive Uploader.
+#
+# Strategy: package the PyInstaller onedir bundle produced by
+# .github/workflows/build-linux.yml, packed as a tar.gz and referenced here.
+#
+# The tar.gz is produced by the same CI run, so its sha256 is not known ahead
+# of time. The workflow therefore rewrites the `url`/`sha256` of the
+# `uploader-bundle` source right before building (see build-flatpak.yml).
+# Keeping the sha256 in this file makes an accidental tampering or a stale
+# download a hard failure instead of a silent swap.
+id: io.github.jcleng.InternetArchiveUploader
+runtime: org.freedesktop.Platform
+runtime-version: '25.08'
+sdk: org.freedesktop.Sdk
+command: internetarchive-uploader-wrapper
+
+finish-args:
+  # Qt GUI
+  - --socket=x11
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  # archive.org uploads and item lookups
+  - --share=network
+  # Choosing local files to upload requires seeing the user's files
+  - --filesystem=home:ro
+  - --filesystem=/media:ro
+  - --filesystem=/run/media:ro
+  # Portal-based file picker under Wayland/XWayland
+  - --talk-name=org.freedesktop.portal.Desktop
+  - --filesystem=xdg-run/gvfsd
+  # Sleep inhibition is optional; wakepy degrades when this is unavailable
+  - --talk-name=org.freedesktop.PowerManagement
+  - --talk-name=org.gnome.SessionManager
+
+modules:
+  - name: internetarchive-uploader
+    buildsystem: simple
+    build-commands:
+      # The bundle is a self-contained onedir tree; keep it intact so the
+      # PyInstaller loader can find its _internal/ payload.
+      # The archive already contains the top-level "InternetArchiveUploader/"
+      # directory, so extract into ${FLATPAK_DEST} directly. Extracting into
+      # ${FLATPAK_DEST}/InternetArchiveUploader would produce a doubled path.
+      # --no-same-owner: the CI tarball carries uid 1001, which the Flatpak
+      # build sandbox cannot chown; ownership is irrelevant inside the bundle.
+      - tar -xzf uploader-bundle.tar.gz -C ${FLATPAK_DEST} --no-same-owner
+      - test -x ${FLATPAK_DEST}/InternetArchiveUploader/InternetArchiveUploader
+      - test -d ${FLATPAK_DEST}/InternetArchiveUploader/_internal/PySide6
+      - install -Dm755 internetarchive-uploader-wrapper ${FLATPAK_DEST}/bin/internetarchive-uploader-wrapper
+      - install -Dm644 InternetArchiveUploader.desktop ${FLATPAK_DEST}/share/applications/InternetArchiveUploader.desktop
+      - install -Dm644 InternetArchiveUploader.metainfo.xml ${FLATPAK_DEST}/share/metainfo/io.github.jcleng.InternetArchiveUploader.metainfo.xml
+      # appstreamcli rejects a metainfo whose license has no matching file.
+      - install -Dm644 LICENSE ${FLATPAK_DEST}/share/licenses/${FLATPAK_ID}/LICENSE
+      - install -Dm644 io.github.jcleng.InternetArchiveUploader.png ${FLATPAK_DEST}/share/icons/hicolor/512x512/apps/io.github.jcleng.InternetArchiveUploader.png
+    sources:
+      # Rewritten by CI with the freshly built bundle URL and sha256.
+      # type: file (not archive) because flatpak-builder auto-extracts archives;
+      # the build commands need the .tar.gz itself so --strip-components works.
+      - type: file
+        url: https://github.com/jcleng/InternetArchiveUploader/releases/download/PENDING/InternetArchiveUploader-linux-x86_64.tar.gz
+        sha256: 0000000000000000000000000000000000000000000000000000000000000000
+        dest-filename: uploader-bundle.tar.gz
+      - type: file
+        path: internetarchive-uploader-wrapper
+      - type: file
+        path: InternetArchiveUploader.desktop
+      - type: file
+        path: InternetArchiveUploader.metainfo.xml
+      - type: file
+        path: LICENSE
+      - type: file
+        path: icons/io.github.jcleng.InternetArchiveUploader.png
+        dest-filename: io.github.jcleng.InternetArchiveUploader.png

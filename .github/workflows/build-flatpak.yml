@@ -1,0 +1,228 @@
+name: Build Flatpak
+
+# Flatpak bundling of the Linux artifact produced by build-linux.yml.
+#
+# The previous workflow's artifact is the input: this job downloads it, packs it
+# as a tar.gz, rewrites the manifest's bundle source URL + sha256, then builds a
+# .flatpak bundle with flatpak-builder.
+
+on:
+  # The bundle packages the app itself, so any code change must rebuild it;
+  # triggering only on the manifest shipped a stale .flatpak after every
+  # feature change.
+  push:
+    branches: [master]
+    paths:
+      - 'main.py'
+      - 'uploader/**'
+      - 'LoginDialog/**'
+      - 'UI/**'
+      - 'AdditionalMetadataDialog/**'
+      - 'assets/**'
+      - 'requirements.txt'
+      - 'packaging/**'
+      - 'scripts/**'
+      - '.github/workflows/build-flatpak.yml'
+    # A version tag must also produce the bundle: the Release ships it.
+    # No paths filter here, so tagging always rebuilds from the tagged commit.
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Publish the bundle to this Release tag (leave empty to only keep the artifact)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  APP_ID: io.github.jcleng.InternetArchiveUploader
+  MANIFEST: packaging/flatpak/io.github.jcleng.InternetArchiveUploader.yaml
+  # Must match runtime-version in the manifest.
+  FLATPAK_RUNTIME: '25.08'
+
+jobs:
+  flatpak:
+    name: Flatpak bundle
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
+      options: --privileged
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Reuse the newest successful Linux bundle from build-linux.yml rather
+      # than rebuilding, so the Flatpak ships exactly the artifact we verified.
+      - name: Download latest Linux artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          # The job runs as root inside a container while the checkout is owned
+          # by the runner user; gh shells out to git and would otherwise abort
+          # with "dubious ownership".
+          git config --global --add safe.directory "$(pwd)"
+          # Both workflows start on the same push, so wait for the desktop build
+          # of THIS commit instead of failing or, worse, packaging an older one.
+          RUN_ID=""
+          for attempt in $(seq 1 60); do
+            RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/build-linux.yml/runs?head_sha=${{ github.sha }}&per_page=10" \
+              --jq '[.workflow_runs[] | select(.conclusion=="success")][0].id // ""')
+            if [ -n "$RUN_ID" ]; then
+              echo "found build-linux run $RUN_ID for ${{ github.sha }} (attempt $attempt)"
+              break
+            fi
+            FAILED=$(gh api "repos/${{ github.repository }}/actions/workflows/build-linux.yml/runs?head_sha=${{ github.sha }}&per_page=10" \
+              --jq '[.workflow_runs[] | select(.conclusion=="failure" or .conclusion=="cancelled")] | length')
+            if [ "$FAILED" != "0" ]; then
+              echo "::error::The desktop build for ${{ github.sha }} failed; nothing to package."
+              exit 1
+            fi
+            echo "waiting for build-linux on ${{ github.sha }} (attempt $attempt/60)"
+            sleep 30
+          done
+          if [ -z "$RUN_ID" ]; then
+            echo "::error::Timed out waiting for build-linux on ${{ github.sha }}."
+            exit 1
+          fi
+          ARTIFACT=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts" \
+            --jq '[.artifacts[] | select(.name | endswith("ubuntu-24.04"))][0].name')
+          test -n "$ARTIFACT"
+          gh run download "$RUN_ID" -n "$ARTIFACT" -D bundle
+
+      - name: Pack the bundle as a tar.gz
+        run: |
+          set -eu
+          ls -l bundle
+          TARBALL="InternetArchiveUploader-linux-x86_64.tar.gz"
+          # The workflow stores <name>.tar.gz already; normalise the file name.
+          SRC=$(ls bundle/*.tar.gz | head -1)
+          # Re-pack without owner/group and with sorted entries: flatpak-builder
+          # cannot chown to the CI uid, and a deterministic tarball keeps the
+          # recorded sha256 meaningful.
+          mkdir -p unpacked
+          tar -xzf "$SRC" -C unpacked --no-same-owner
+          tar --sort=name --owner=0 --group=0 --numeric-owner \
+              --mtime='UTC 2020-01-01' -czf "$TARBALL" -C unpacked .
+          tar -tzf "$TARBALL" | head -3
+          # The repack puts everything under "./", so assert the entry point
+          # exists at the archive root instead of counting top-level dirs.
+          tar -tzf "$TARBALL" | grep -qx "./InternetArchiveUploader/InternetArchiveUploader"
+          tar -tzf "$TARBALL" | grep -q "./InternetArchiveUploader/_internal/"
+          sha256sum "$TARBALL" | tee bundle.sha256
+
+      # flatpak-builder needs a stable, fetchable URL. Serving the file from a
+      # local HTTP server keeps the manifest honest (still an archive source
+      # with a real sha256) without publishing a throwaway release.
+      - name: Serve the bundle locally
+        run: |
+          set -eu
+          mkdir -p /srv/bundle
+          cp InternetArchiveUploader-linux-x86_64.tar.gz /srv/bundle/
+          cd /srv/bundle && nohup python3 -m http.server 8123 >/tmp/http.log 2>&1 &
+          sleep 2
+          curl -fsS -o /dev/null http://127.0.0.1:8123/InternetArchiveUploader-linux-x86_64.tar.gz
+
+      - name: Point the manifest at the local bundle
+        run: |
+          set -eu
+          SHA=$(cut -d' ' -f1 bundle.sha256)
+          echo "bundle sha256: $SHA"
+          python3 - "$SHA" <<'PY'
+          import os, re, sys
+          sha = sys.argv[1]
+          path = os.environ['MANIFEST']
+          text = open(path, encoding='utf-8').read()
+          url = 'http://127.0.0.1:8123/InternetArchiveUploader-linux-x86_64.tar.gz'
+          # Replace the placeholder URL and the placeholder checksum in place.
+          text, n_url = re.subn(
+              r'url: \S*InternetArchiveUploader-linux-x86_64\.tar\.gz', f'url: {url}', text
+          )
+          text, n_sha = re.subn(r'sha256: 0{64}', f'sha256: {sha}', text)
+          assert n_url == 1, f'url rewrite matched {n_url}'
+          assert n_sha == 1, f'sha256 rewrite matched {n_sha}'
+          open(path, 'w', encoding='utf-8').write(text)
+          print('manifest patched')
+          PY
+          grep -n -B2 -A3 'uploader-bundle.tar.gz' "$MANIFEST" | head -10
+          python3 -c "import yaml,sys; yaml.safe_load(open(sys.argv[1])); print('manifest yaml ok')" "$MANIFEST"
+
+      # Catches metainfo mistakes (the appstream errors are otherwise buried in
+      # the compose stage of the build) before the slow bundle step.
+      - name: Validate metainfo
+        run: |
+          set -eu
+          mkdir -p /tmp/check/usr/share/metainfo
+          cp "packaging/flatpak/InternetArchiveUploader.metainfo.xml" \
+             "/tmp/check/usr/share/metainfo/${APP_ID}.metainfo.xml"
+          appstreamcli validate --no-net \
+             "/tmp/check/usr/share/metainfo/${APP_ID}.metainfo.xml"
+
+      - name: Build Flatpak
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: ${{ env.APP_ID }}.flatpak
+          manifest-path: ${{ env.MANIFEST }}
+          cache-key: flatpak-builder-ia-uploader-${{ github.sha }}
+          branch: stable
+          upload-artifact: false
+
+      - name: Verify the bundle installs and starts
+        run: |
+          set -eu
+          ls -lh "${APP_ID}.flatpak"
+          flatpak install --user --noninteractive --bundle "${APP_ID}.flatpak"
+          flatpak list --app --columns=application,branch
+          # The bundled entry point must report a successful headless start.
+          flatpak run --command=sh "${APP_ID}" -c '
+            set -eu
+            test -x /app/InternetArchiveUploader/InternetArchiveUploader
+            QT_QPA_PLATFORM=offscreen /app/InternetArchiveUploader/InternetArchiveUploader --smoke-test
+          '
+          flatpak uninstall --user -y "${APP_ID}"
+
+      - name: Compute checksum
+        run: |
+          set -eu
+          sha256sum "${APP_ID}.flatpak" | tee "SHA256SUMS-flatpak"
+          echo "SHA256_FULL=$(cat SHA256SUMS-flatpak)" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_ID }}-flatpak
+          path: |
+            ${{ env.APP_ID }}.flatpak
+            SHA256SUMS-flatpak
+          if-no-files-found: error
+
+  release:
+    name: Publish Flatpak
+    needs: flatpak
+    # Two ways in: a v* tag (release it alongside the desktop artifacts) or a
+    # manual run with an explicit tag.
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.APP_ID }}-flatpak
+
+      - name: Show files
+        run: ls -l
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          # On a tag push this is empty, which makes the action use github.ref.
+          tag_name: ${{ inputs.release_tag }}
+          files: |
+            *.flatpak
+            SHA256SUMS-flatpak
+          fail_on_unmatched_files: true

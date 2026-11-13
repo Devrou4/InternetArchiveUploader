@@ -175,4 +175,7 @@ cython_debug/
 
 *.ini
 
-*.spec
+!packaging/*.spec
+# Local test/runtime scratch
+.venv/
+.superpowers/

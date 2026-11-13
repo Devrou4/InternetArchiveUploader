@@ -1,0 +1,309 @@
+"""Flatpak packaging contract.
+
+The manifest is only exercised on CI, so these tests pin the pieces that would
+otherwise fail there for the first time.
+"""
+
+import os
+from pathlib import Path
+
+import pytest
+
+yaml = pytest.importorskip("yaml")
+
+ROOT = Path(__file__).resolve().parent.parent
+FLATPAK = ROOT / "packaging" / "flatpak"
+MANIFEST = FLATPAK / "io.github.jcleng.InternetArchiveUploader.yaml"
+APP_ID = "io.github.jcleng.InternetArchiveUploader"
+
+
+@pytest.fixture(scope="module")
+def workflow_paths() -> set[str]:
+    data = yaml.safe_load(
+        (ROOT / ".github" / "workflows" / "build-flatpak.yml").read_text(encoding="utf-8")
+    )
+    on = data["on"] if "on" in data else data[True]
+    return set(on["push"]["paths"])
+
+
+@pytest.fixture(scope="module")
+def manifest():
+    return yaml.safe_load(MANIFEST.read_text(encoding="utf-8"))
+
+
+def test_manifest_exists_with_expected_app_id(manifest):
+    assert MANIFEST.is_file()
+    assert manifest["id"] == APP_ID
+
+
+def test_runtime_matches_the_workflow_container(manifest):
+    workflow = (ROOT / ".github" / "workflows" / "build-flatpak.yml").read_text(encoding="utf-8")
+    runtime_version = str(manifest["runtime-version"])
+
+    assert workflow.count(runtime_version) >= 1
+    assert manifest["runtime"] == "org.freedesktop.Platform"
+    assert manifest["sdk"] == "org.freedesktop.Sdk"
+
+
+def test_command_points_at_the_wrapper(manifest):
+    wrapper = FLATPAK / "internetarchive-uploader-wrapper"
+
+    assert manifest["command"] == "internetarchive-uploader-wrapper"
+    assert wrapper.is_file()
+
+
+def test_wrapper_is_executable_and_runs_the_app(manifest):
+    wrapper = FLATPAK / "internetarchive-uploader-wrapper"
+    text = wrapper.read_text(encoding="utf-8")
+
+    assert text.startswith("#!")
+    assert "exec" in text
+    assert "InternetArchiveUploader" in text
+
+
+def test_required_files_are_listed_as_sources(manifest):
+    module = [m for m in manifest["modules"] if "sources" in m][-1]
+    names = {Path(s.get("path", s.get("dest-filename", ""))).name for s in module["sources"]}
+
+    assert "InternetArchiveUploader.desktop" in names
+    assert "InternetArchiveUploader.metainfo.xml" in names
+    assert "internetarchive-uploader-wrapper" in names
+
+
+def test_appimage_source_has_a_checksum(manifest):
+    uploader = [m for m in manifest["modules"] if m.get("name") == "internetarchive-uploader"][0]
+    file_sources = [s for s in uploader["sources"] if s.get("type") in {"file", "archive"}]
+    remote = [s for s in file_sources if s.get("url")]
+
+    for source in remote:
+        assert "sha256" in source, f"{source.get('url')} has no sha256"
+
+
+def test_finish_args_allow_network_and_show_the_gui(manifest):
+    args = manifest["finish-args"]
+
+    assert "--share=network" in args
+    assert any(a.startswith("--socket=x11") for a in args)
+    assert any(a.startswith("--socket=wayland") for a in args)
+
+
+def test_desktop_entry_is_valid():
+    desktop = (FLATPAK / "InternetArchiveUploader.desktop").read_text(encoding="utf-8")
+
+    assert "[Desktop Entry]" in desktop
+    assert "Exec=internetarchive-uploader-wrapper" in desktop
+    assert f"Icon={APP_ID}" in desktop
+    assert "Terminal=false" in desktop
+
+
+def test_metainfo_matches_app_id_and_desktop_name():
+    import xml.etree.ElementTree as ET
+
+    root = ET.parse(FLATPAK / "InternetArchiveUploader.metainfo.xml").getroot()
+
+    assert root.findtext("id") == APP_ID
+    assert root.find("name") is not None
+    assert root.findtext("summary")
+    launchable = root.find("launchable")
+    assert launchable is not None and launchable.text == f"{APP_ID}.desktop"
+
+
+def test_app_icon_is_at_least_128px():
+    """Flatpak/hicolor expects a real icon; the upstream 40px asset is too small."""
+    from PySide6 import QtGui
+
+    icon = FLATPAK / "icons" / f"{APP_ID}.png"
+    assert icon.is_file()
+    image = QtGui.QImage(str(icon))
+    assert image.width() >= 128 and image.height() >= 128
+
+
+def test_workflow_builds_and_publishes_the_bundle():
+    workflow = (ROOT / ".github" / "workflows" / "build-flatpak.yml").read_text(encoding="utf-8")
+
+    assert "flatpak-builder" in workflow
+    assert "flatpak install --user" in workflow
+    assert "sha256sum" in workflow
+    assert "*.flatpak" in workflow
+
+
+def test_workflow_does_not_need_secrets():
+    workflow = (ROOT / ".github" / "workflows" / "build-flatpak.yml").read_text(encoding="utf-8")
+
+    assert "secrets." not in workflow
+
+
+def test_bundle_source_is_a_file_not_an_archive(manifest):
+    """flatpak-builder auto-extracts `archive` sources, which breaks our tar step."""
+    uploader = [m for m in manifest["modules"] if m.get("name") == "internetarchive-uploader"][0]
+    bundle = [
+        s for s in uploader["sources"]
+        if s.get("dest-filename") == "uploader-bundle.tar.gz"
+    ][0]
+
+    assert bundle["type"] == "file"
+
+
+def test_build_commands_extract_without_chown(manifest):
+    """CI tarballs carry uid 1001; the sandbox cannot chown, so drop ownership."""
+    uploader = [m for m in manifest["modules"] if m.get("name") == "internetarchive-uploader"][0]
+    commands = " ".join(uploader["build-commands"])
+
+    assert "--no-same-owner" in commands
+    assert "InternetArchiveUploader" in commands
+
+
+@pytest.mark.skipif(
+    os.name != "posix",
+    reason="Workflow run blocks are POSIX shell; Windows' bash differs",
+)
+def test_workflow_run_blocks_have_balanced_quotes():
+    """A stray quote breaks the whole step with 'unexpected EOF'."""
+    import re
+    import subprocess
+    import tempfile
+
+    text = (ROOT / ".github" / "workflows" / "build-flatpak.yml").read_text(encoding="utf-8")
+    blocks = re.findall(r"run: \|\n((?:\s{10}.*\n)+)", text)
+    assert blocks, "no run: | blocks found"
+
+    for block in blocks:
+        script = "\n".join(line[10:] for line in block.splitlines() if line.strip())
+        handle = tempfile.NamedTemporaryFile("w", suffix=".sh", delete=False)
+        handle.write(script)
+        handle.close()
+        result = subprocess.run(["bash", "-n", handle.name], capture_output=True, text=True)
+        assert result.returncode == 0, f"{result.stderr}\n---\n{script}"
+
+
+def test_bundle_extracts_into_dest_without_doubling_the_path(manifest):
+    """The archive already has a top-level dir; extracting into DEST/<same>
+    produced /app/InternetArchiveUploader/InternetArchiveUploader and failed CI."""
+    uploader = [m for m in manifest["modules"] if m.get("name") == "internetarchive-uploader"][0]
+    commands = "\n".join(uploader["build-commands"])
+
+    assert "tar -xzf uploader-bundle.tar.gz -C ${FLATPAK_DEST} " in commands
+    assert "-C ${FLATPAK_DEST}/InternetArchiveUploader" not in commands
+
+
+def test_metainfo_has_license_and_provides():
+    """appstreamcli compose rejects metainfo without a project license."""
+    import xml.etree.ElementTree as ET
+
+    root = ET.parse(FLATPAK / "InternetArchiveUploader.metainfo.xml").getroot()
+
+    assert root.findtext("project_license") == "MIT"
+    # metadata_license is a separate field; appstreamcli reports
+    # "metadata-license-missing" without it.
+    assert root.findtext("metadata_license") == "MIT"
+    provides = root.find("provides")
+    assert provides is not None
+    # Must match the binary actually installed into /app/bin.
+    assert provides.findtext("binary") == "internetarchive-uploader-wrapper"
+
+
+def test_license_is_shipped_for_appstream(manifest):
+    """appstreamcli errors with metainfo-license-invalid without this file."""
+    uploader = [m for m in manifest["modules"] if m.get("name") == "internetarchive-uploader"][0]
+    paths = {s.get("path") for s in uploader["sources"] if s.get("path")}
+    commands = "\n".join(uploader["build-commands"])
+
+    assert "LICENSE" in paths
+    assert (FLATPAK / "LICENSE").is_file()
+    assert "share/licenses/" in commands
+
+
+def test_flatpak_license_matches_the_upstream_one():
+    upstream = (ROOT / "LICENSE").read_text(encoding="utf-8")
+    vendored = (FLATPAK / "LICENSE").read_text(encoding="utf-8")
+
+    assert "MIT License" in upstream
+    assert vendored == upstream
+
+
+def test_flatpak_rebuilds_when_the_app_changes(workflow_paths):
+    """The bundle packages app code; triggering only on the manifest meant a
+    code change kept shipping a stale .flatpak."""
+    assert any(
+        p in {"main.py", "uploader/**", "requirements.txt"} for p in workflow_paths
+    ), f"paths filter does not cover app code: {workflow_paths}"
+
+
+def test_flatpak_uses_the_artifact_from_the_same_commit():
+    """Fetching 'the latest successful run' can package an older commit."""
+    text = (ROOT / ".github" / "workflows" / "build-flatpak.yml").read_text(encoding="utf-8")
+
+    assert "github.sha" in text, "artifact must be resolved for the current commit"
+    assert "status=success&per_page=1" not in text
+
+
+def test_flatpak_waits_for_the_desktop_build_of_the_same_commit():
+    """Both workflows start on the same push; the Flatpak job must wait rather
+    than fail because build-linux has not finished yet."""
+    text = (ROOT / ".github" / "workflows" / "build-flatpak.yml").read_text(encoding="utf-8")
+
+    assert "sleep" in text and ("attempt" in text or "for i in" in text)
+
+
+def test_runtime_is_current_and_matches_the_container(manifest):
+    """24.08 is end-of-life upstream. The runtime must be a supported branch and
+    the CI container tag must agree, or flatpak-builder installs a different
+    runtime than the manifest declares."""
+    version = str(manifest["runtime-version"])
+    workflow = (ROOT / ".github" / "workflows" / "build-flatpak.yml").read_text(encoding="utf-8")
+
+    assert version == "25.08", "runtime is pinned to 25.08; update docs and CI together"
+    assert version != "24.08", "24.08 is EOL"
+    assert f"freedesktop-{version}" in workflow
+    major = int(version.split(".")[0])
+    assert major >= 25
+
+
+def test_flatpak_publishes_on_a_version_tag():
+    """A v* tag produces a desktop Release; the .flatpak must ride along,
+    otherwise users following the README find no Flatpak download."""
+    text = (ROOT / ".github" / "workflows" / "build-flatpak.yml").read_text(encoding="utf-8")
+
+    assert "refs/tags/v" in text
+    assert "*.flatpak" in text
+
+
+def test_metainfo_version_matches_the_release_tag():
+    """appstream shows the version; a stale value misreports the build."""
+    import xml.etree.ElementTree as ET
+
+    root = ET.parse(FLATPAK / "InternetArchiveUploader.metainfo.xml").getroot()
+    version = root.find("releases/release").get("version")
+
+    assert version == "0.2.0"
+
+
+def test_push_trigger_is_a_single_mapping_with_branches_paths_and_tags():
+    """A duplicated `push:` key silently drops the first one's filters."""
+    import re
+
+    text = (ROOT / ".github" / "workflows" / "build-flatpak.yml").read_text(encoding="utf-8")
+    on_block = text.split("\non:", 1)[1].split("\npermissions:", 1)[0]
+
+    assert len(re.findall(r"^  push:", on_block, re.M)) == 1
+
+    data = yaml.safe_load(text)
+    on = data["on"] if "on" in data else data[True]
+    assert on["push"]["branches"] == ["master"]
+    assert "v*" in on["push"]["tags"]
+    assert on["push"]["paths"], "code-change rebuild paths were lost"
+
+
+def test_tag_push_releases_the_flatpak_without_a_paths_filter():
+    """Tagging must always build the bundle, even if the tag lands on a commit
+    that touched no watched path."""
+    data = yaml.safe_load(
+        (ROOT / ".github" / "workflows" / "build-flatpak.yml").read_text(encoding="utf-8")
+    )
+    on = data["on"] if "on" in data else data[True]
+
+    # Same mapping covers both; a tag push with no matching path still triggers
+    # because GitHub evaluates tags independently of the paths list.
+    assert "v*" in on["push"]["tags"]
+    release = data["jobs"]["release"]
+    assert "refs/tags/v" in release["if"] or "refs/tags/v" in str(release)
